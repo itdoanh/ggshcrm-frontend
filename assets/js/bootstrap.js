@@ -92,11 +92,10 @@
     }
   }
 
-  try {
-    document.addEventListener('alpine:init', () => {
-      console.log('[Bootstrap] alpine:init fired');
-      try {
-        // ===== APP ROOT =====
+  document.addEventListener('alpine:init', () => {
+    console.log('[Bootstrap] alpine:init fired');
+    try {
+      // ===== APP ROOT =====
         Alpine.data('app', () => ({
           ready: false,
           auth: Alpine.store('auth'),
