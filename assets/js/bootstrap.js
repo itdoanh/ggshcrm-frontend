@@ -224,6 +224,13 @@
             catch (e) { console.error('Alpine.initTree error:', e); }
           }
 
+          // Defensive: ensure fallback scopes đã register trước khi Alpine eval
+          const reg = window.Alpine && window.Alpine._crmRegistered;
+          if (reg) {
+            try { (window.ensureCrmFallbackScopes || function(){})(); }
+            catch (e) {}
+          }
+
           // Render Lucide icons
           if (window.ic) window.ic.render(target);
 

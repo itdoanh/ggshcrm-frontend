@@ -11,7 +11,7 @@
       <p class="text-sm text-surface-400">Cấu hình cách lead được phân chia cho các Manager/Leader/Sale</p>
     </div>
     <button @click="refresh()" class="btn btn-secondary" :disabled="loading">
-      <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      <i data-lucide="refresh-cw" :class="(typeof loading !== 'undefined' && loading) ? 'animate-spin' : ''"></i>
       Làm mới
     </button>
   </div>

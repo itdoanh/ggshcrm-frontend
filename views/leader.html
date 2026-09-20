@@ -7,7 +7,7 @@
       <p class="text-sm text-surface-400">Quản lý lead và phân bổ cho Sale</p>
     </div>
     <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
-      <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      <i data-lucide="refresh-cw" :class="(typeof loading !== 'undefined' && loading) ? 'animate-spin' : ''"></i>
       Làm mới
     </button>
   </div>

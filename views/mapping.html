@@ -7,7 +7,7 @@
       <p class="text-sm text-surface-400">Quy tắc chuyển đổi giữa 21 trạng thái nội bộ và 8 trạng thái Ads</p>
     </div>
     <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
-      <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      <i data-lucide="refresh-cw" :class="(typeof loading !== 'undefined' && loading) ? 'animate-spin' : ''"></i>
     </button>
   </div>
 

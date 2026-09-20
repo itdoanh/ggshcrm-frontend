@@ -8,7 +8,7 @@
     </div>
     <div class="flex items-center gap-2">
       <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
-        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+        <i data-lucide="refresh-cw" :class="(typeof loading !== 'undefined' && loading) ? 'animate-spin' : ''"></i>
       </button>
       <button class="btn btn-primary" @click="openCreate()" x-show="canCreate">
         <i data-lucide="plus"></i> Thêm user
