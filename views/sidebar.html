@@ -1,0 +1,40 @@
+<!-- views/sidebar.html - Alpine component cho sidebar -->
+
+<div x-data="sidebarView" class="flex flex-col h-full">
+  <!-- Header -->
+  <div class="sidebar-header">
+    <div class="sidebar-logo">C</div>
+    <div class="sidebar-title">CRM Apex</div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="sidebar-nav">
+    <template x-for="section in menu()" :key="section.group">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title" x-text="section.group"></div>
+        <template x-for="item in section.items" :key="item.route">
+          <div
+            class="sidebar-item"
+            :class="{ 'active': isActive(item.route) }"
+            @click="go(item.route)"
+          >
+            <i :data-lucide="item.icon"></i>
+            <span x-text="item.label"></span>
+          </div>
+        </template>
+      </div>
+    </template>
+  </nav>
+
+  <!-- Footer (user) -->
+  <div class="sidebar-footer">
+    <div class="topbar-user" @click="logout()">
+      <div class="user-avatar" x-text="initials"></div>
+      <div class="user-info">
+        <div class="user-name" x-text="fullName"></div>
+        <div class="user-role" x-text="roleLabel"></div>
+      </div>
+      <i data-lucide="log-out" style="width:14px;height:14px;color:#94a3b8;" class="ml-auto"></i>
+    </div>
+  </div>
+</div>

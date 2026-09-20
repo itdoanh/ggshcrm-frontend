@@ -1,0 +1,106 @@
+<!-- views/profile.html - Hồ sơ cá nhân -->
+
+<div x-data="profilePage" class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-bold text-white mb-6">Hồ sơ của tôi</h1>
+
+  <div class="card mb-4">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="user-avatar" style="width:64px;height:64px;font-size:24px;" x-text="auth.initials()"></div>
+      <div>
+        <div class="text-lg font-semibold" x-text="auth.fullName()"></div>
+        <div class="text-sm text-surface-400" x-text="'@' + (auth.user.username || '')"></div>
+        <div class="mt-1">
+          <span class="badge" :class="roleBadgeClass()" x-text="roleLabel()"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2 gap-4 text-sm">
+      <div>
+        <div class="text-xs text-surface-500 mb-1">User ID</div>
+        <code class="text-xs text-surface-300" x-text="auth.user.user_id"></code>
+      </div>
+      <div>
+        <div class="text-xs text-surface-500 mb-1">Email</div>
+        <div class="text-surface-300" x-text="auth.user.email || '—'"></div>
+      </div>
+      <div>
+        <div class="text-xs text-surface-500 mb-1">Manager</div>
+        <div class="text-surface-300" x-text="auth.user.manager_id || '—'"></div>
+      </div>
+      <div>
+        <div class="text-xs text-surface-500 mb-1">Leader</div>
+        <div class="text-surface-300" x-text="auth.user.leader_id || '—'"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Đổi mật khẩu</div>
+    </div>
+    <form @submit.prevent="changePassword()" class="space-y-3">
+      <div>
+        <label class="form-label">Mật khẩu hiện tại</label>
+        <input type="password" class="form-input" x-model="currentPassword" required />
+      </div>
+      <div>
+        <label class="form-label">Mật khẩu mới (>= 6 ký tự)</label>
+        <input type="password" class="form-input" x-model="newPassword" required minlength="6" />
+      </div>
+      <div>
+        <label class="form-label">Xác nhận mật khẩu mới</label>
+        <input type="password" class="form-input" x-model="confirmPassword" required minlength="6" />
+      </div>
+      <button type="submit" class="btn btn-primary w-full" :disabled="loading">
+        <i data-lucide="key" class="w-4 h-4"></i>
+        Đổi mật khẩu
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('profilePage', () => ({
+  auth: Alpine.store('auth'),
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+  loading: false,
+
+  roleLabel() {
+    return (window.APP_ROLES[this.auth.user.role] || {}).label || this.auth.user.role;
+  },
+  roleBadgeClass() {
+    return { admin: 'badge-rose', manager: 'badge-amber', leader: 'badge-sky', sale: 'badge-emerald' }[this.auth.user.role] || 'badge-slate';
+  },
+
+  async changePassword() {
+    if (this.newPassword !== this.confirmPassword) {
+      toast.error('Mật khẩu xác nhận không khớp');
+      return;
+    }
+    if (this.newPassword.length < 6) {
+      toast.error('Mật khẩu mới phải >= 6 ký tự');
+      return;
+    }
+    this.loading = true;
+    try {
+      // Lưu ý: backend chưa check currentPassword trong usersUpdate
+      // Có thể bổ sung sau
+      await api.updateUser({
+        user_id: this.auth.user.user_id,
+        password: this.newPassword
+      });
+      toast.success('Đã đổi mật khẩu');
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.confirmPassword = '';
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.loading = false;
+    }
+  }
+}));
+</script>

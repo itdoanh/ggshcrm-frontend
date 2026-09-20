@@ -1,0 +1,127 @@
+<!-- views/mapping.html - Admin: Bảng ánh xạ 21 TT nội bộ -> 8 TT Ads -->
+
+<div x-data="mappingPage">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">Bảng ánh xạ trạng thái</h1>
+      <p class="text-sm text-surface-400">Quy tắc chuyển đổi giữa 21 trạng thái nội bộ và 8 trạng thái Ads</p>
+    </div>
+    <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+      <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Trạng thái nội bộ (CRM)</th>
+            <th></th>
+            <th>Trạng thái Ads (Sheet Nguồn QC)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="row in mappings" :key="row.trang_thai_noi_bo">
+            <tr>
+              <td>
+                <span class="status-badge" :style="badgeStyle(row.trang_thai_noi_bo)">
+                  <span class="status-dot" :style="{ background: statusColor(row.trang_thai_noi_bo) }"></span>
+                  <span x-text="row.trang_thai_noi_bo"></span>
+                </span>
+              </td>
+              <td>
+                <i data-lucide="arrow-right" class="w-4 h-4 text-surface-500"></i>
+              </td>
+              <td>
+                <select
+                  class="form-select"
+                  x-model="row.trang_thai_ads"
+                  @change="save(row)"
+                  :disabled="saving"
+                >
+                  <template x-for="opt in adsOptions" :key="opt">
+                    <option :value="opt" x-text="opt"></option>
+                  </template>
+                </select>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Hướng dẫn</div>
+      </div>
+    </div>
+    <ul class="text-sm text-surface-300 space-y-2">
+      <li class="flex items-start gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-brand-400 mt-0.5"></i>
+        <span>Trạng thái nội bộ được Sale/Manager sử dụng để quản lý chi tiết quy trình chăm sóc khách hàng.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-brand-400 mt-0.5"></i>
+        <span>Trạng thái Ads chỉ có 8 giá trị - là "ngôn ngữ chung" với bên chạy quảng cáo.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-brand-400 mt-0.5"></i>
+        <span>Mỗi khi Sale đổi trạng thái nội bộ, hệ thống sẽ tự động convert sang trạng thái Ads tương ứng và đẩy về Sheet Nguồn QC.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-brand-400 mt-0.5"></i>
+        <span>Thay đổi ở đây sẽ ảnh hưởng đến toàn bộ quy trình đồng bộ. Vui lòng cân nhắc trước khi lưu.</span>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('mappingPage', () => ({
+  loading: false,
+  saving: false,
+  mappings: [],
+  statusColors: {},
+  adsOptions: [],
+
+  async init() {
+    try {
+      const sr = await api.listStatus();
+      this.statusColors = sr.data.colors || {};
+      this.adsOptions = sr.data.ads || [];
+    } catch (e) {}
+    await this.refresh();
+  },
+
+  async refresh() {
+    this.loading = true;
+    try {
+      const r = await api.listMapping();
+      this.mappings = r.data || [];
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.loading = false;
+    }
+  },
+
+  statusColor(s) { return this.statusColors[s] || '#64748b'; },
+  badgeStyle(s) { const c = this.statusColor(s); return `background:${c}20;border-color:${c}40;color:${c};`; },
+
+  async save(row) {
+    this.saving = true;
+    try {
+      await api.updateMapping(row.trang_thai_noi_bo, row.trang_thai_ads);
+      toast.success('Đã lưu: ' + row.trang_thai_noi_bo + ' -> ' + row.trang_thai_ads);
+    } catch (e) {
+      toast.error(e.message);
+      this.refresh();
+    } finally {
+      this.saving = false;
+    }
+  }
+}));
+</script>

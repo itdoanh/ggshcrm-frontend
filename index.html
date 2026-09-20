@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="vi" x-data="app" x-init="init()" :class="{ 'dark': true }">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>CRM Apex - Hệ thống phân cấp</title>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://unpkg.com" />
+
+  <!-- Inter Vietnamese subset -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-400.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-500.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-600.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-700.css" />
+
+  <!-- Tailwind CSS v4 Play CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1"></script>
+
+  <style type="text/tailwindcss">
+    @theme {
+      --color-brand-50:  #eef2ff;
+      --color-brand-100: #e0e7ff;
+      --color-brand-200: #c7d2fe;
+      --color-brand-300: #a5b4fc;
+      --color-brand-400: #818cf8;
+      --color-brand-500: #6366f1;
+      --color-brand-600: #4f46e5;
+      --color-brand-700: #4338ca;
+      --color-brand-800: #3730a3;
+      --color-brand-900: #312e81;
+      --color-brand-950: #1e1b4b;
+
+      --color-surface-50:  #f8fafc;
+      --color-surface-100: #f1f5f9;
+      --color-surface-200: #e2e8f0;
+      --color-surface-300: #cbd5e1;
+      --color-surface-400: #94a3b8;
+      --color-surface-500: #64748b;
+      --color-surface-600: #475569;
+      --color-surface-700: #334155;
+      --color-surface-800: #1e293b;
+      --color-surface-900: #0f172a;
+      --color-surface-950: #020617;
+
+      --color-accent-emerald: #10b981;
+      --color-accent-amber:   #f59e0b;
+      --color-accent-rose:    #f43f5e;
+      --color-accent-sky:     #0ea5e9;
+      --color-accent-violet:  #8b5cf6;
+
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+  </style>
+
+  <link rel="stylesheet" href="assets/css/theme.css" />
+  <link rel="stylesheet" href="assets/css/animations.css" />
+  <link rel="stylesheet" href="assets/css/components.css" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%234f46e5'/%3E%3Ctext x='50' y='66' text-anchor='middle' font-size='52' fill='white' font-family='Inter,sans-serif' font-weight='800'%3EC%3C/text%3E%3C/svg%3E" />
+</head>
+<body class="font-sans bg-surface-950 text-surface-100 antialiased min-h-screen">
+
+  <!-- Splash loading -->
+  <div x-show="!ready" x-transition.opacity.duration.300ms class="splash-screen">
+    <div class="splash-content">
+      <div class="splash-logo">
+        <svg width="64" height="64" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="22" fill="url(#grad)"/>
+          <defs>
+            <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#8b5cf6"/>
+            </linearGradient>
+          </defs>
+          <text x="50" y="66" text-anchor="middle" font-size="52" fill="white" font-family="Inter,sans-serif" font-weight="800">C</text>
+        </svg>
+      </div>
+      <div class="splash-text">CRM Apex</div>
+      <div class="splash-spinner"></div>
+    </div>
+  </div>
+
+  <!-- App root -->
+  <div x-show="ready" x-cloak>
+
+    <!-- LOGIN VIEW -->
+    <template x-if="!auth.token">
+      <div x-data="loginView" x-init="init()"></div>
+    </template>
+
+    <!-- APP SHELL -->
+    <template x-if="auth.token">
+      <div x-data="appShell" class="app-shell">
+
+        <!-- Sidebar -->
+        <aside class="app-sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <div class="sidebar-host"></div>
+        </aside>
+
+        <!-- Main -->
+        <div class="app-main">
+          <header class="app-topbar">
+            <div class="topbar-host w-full"></div>
+          </header>
+
+          <main id="route-container" class="app-content fade-in" data-route-content></main>
+        </div>
+
+        <!-- Modal & Toast layers -->
+        <div x-data="modalLayer" class="contents">
+          <template x-for="m in stack" :key="m.id">
+            <div>
+              <div class="modal-overlay modal-overlay-enter" @click.self="close(m.id)">
+                <div class="modal modal-overlay-enter"
+                     :class="{ 'modal-sm': m.size==='sm', 'modal-lg': m.size==='lg', 'modal-xl': m.size==='xl' }">
+                  <div class="modal-header">
+                    <div class="modal-title" x-text="m.title || ''"></div>
+                    <button class="modal-close" @click="close(m.id)">
+                      <i data-lucide="x" style="width:18px;height:18px;"></i>
+                    </button>
+                  </div>
+                  <div class="modal-body" x-html="m.html || ''"></div>
+                  <div class="modal-footer" x-show="m.footer !== false">
+                    <button class="btn btn-secondary" @click="close(m.id)">Đóng</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div x-data="toastLayer" class="hidden"></div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ==================== LIBS ==================== -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.1/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/lucide@1.39.0"></script>
+
+  <script>
+    window.loadChartJs = () => {
+      if (window.Chart) return Promise.resolve(window.Chart);
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js';
+        s.onload = () => resolve(window.Chart);
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    };
+  </script>
+
+  <!-- ==================== APP ==================== -->
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/formatters.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/toast.js"></script>
+  <script src="assets/js/api-client.js"></script>
+  <script src="assets/js/auth-store.js"></script>
+  <script src="assets/js/router.js"></script>
+  <script src="assets/js/polling.js"></script>
+  <script src="assets/js/bootstrap.js"></script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!-- views/admin.html - Admin Dashboard -->
+
+<div x-data="adminDashboard">
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">Dashboard</h1>
+      <p class="text-sm text-surface-400">Tổng quan toàn hệ thống CRM</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+        Làm mới
+      </button>
+      <button class="btn btn-primary" @click="openCreateLead()">
+        <i data-lucide="plus"></i>
+        Thêm lead
+      </button>
+    </div>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="grid-4 stagger mb-6">
+    <div class="metric-card hover-lift" style="--c1:#6366f1;--c2:#8b5cf6;">
+      <div class="metric-icon"><i data-lucide="inbox"></i></div>
+      <div class="metric-label">Tổng Lead</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.total)"></div>
+      <div class="metric-delta up">
+        <i data-lucide="trending-up"></i>
+        <span x-text="'+' + fmt.number(metrics.today) + ' hôm nay'"></span>
+      </div>
+    </div>
+
+    <div class="metric-card hover-lift" style="--c1:#10b981;--c2:#14b8a6;">
+      <div class="metric-icon" style="background:rgba(16,185,129,0.15);color:#10b981;">
+        <i data-lucide="activity"></i>
+      </div>
+      <div class="metric-label">Đang xử lý</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.in_progress)"></div>
+      <div class="metric-delta neutral">
+        <span x-text="fmt.number(metrics.unassigned) + ' chưa phân'"></span>
+      </div>
+    </div>
+
+    <div class="metric-card hover-lift" style="--c1:#22c55e;--c2:#16a34a;">
+      <div class="metric-icon" style="background:rgba(34,197,94,0.15);color:#22c55e;">
+        <i data-lucide="graduation-cap"></i>
+      </div>
+      <div class="metric-label">Đã học</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.converted)"></div>
+      <div class="metric-delta up">
+        <i data-lucide="trending-up"></i>
+        <span x-text="fmt.number(metrics.conversion_rate, {percent: true, digits: 1}) + ' chuyển đổi'"></span>
+      </div>
+    </div>
+
+    <div class="metric-card hover-lift" style="--c1:#f43f5e;--c2:#e11d48;">
+      <div class="metric-icon" style="background:rgba(244,63,94,0.15);color:#f43f5e;">
+        <i data-lucide="x-circle"></i>
+      </div>
+      <div class="metric-label">Thất bại</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.failed)"></div>
+      <div class="metric-delta down">
+        <span x-text="fmt.number(metrics.failure_rate, {percent: true, digits: 1}) + ' tỷ lệ'"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid-2 mb-6">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Lead theo giờ hôm nay</div>
+          <div class="card-subtitle">Cập nhật real-time</div>
+        </div>
+        <span class="status-badge status-success"><span class="status-dot live-blink"></span> Live</span>
+      </div>
+      <div style="height: 240px; position: relative;">
+        <canvas x-ref="hourlyChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Phân bổ trạng thái</div>
+          <div class="card-subtitle">Theo 21 TT nội bộ</div>
+        </div>
+      </div>
+      <div style="height: 240px; position: relative;">
+        <canvas x-ref="statusChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Leads -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Lead mới nhất</div>
+        <div class="card-subtitle">Tự động cập nhật mỗi 2 giây</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-ghost btn-sm" @click="setFilter('all')" :class="filter==='all' ? 'btn-primary' : ''">
+          Tất cả
+        </button>
+        <button class="btn btn-ghost btn-sm" @click="setFilter('unassigned')" :class="filter==='unassigned' ? 'btn-primary' : ''">
+          Chưa phân
+        </button>
+        <button class="btn btn-ghost btn-sm" @click="setFilter('converted')" :class="filter==='converted' ? 'btn-primary' : ''">
+          Đã học
+        </button>
+      </div>
+    </div>
+
+    <div class="relative mb-4">
+      <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500"></i>
+      <input type="search" class="form-input pl-9 max-w-md" placeholder="Tìm theo tên, SĐT..." x-model="search" />
+    </div>
+
+    <div class="data-table-wrap" style="max-height: 480px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Lead ID</th>
+            <th>Họ tên</th>
+            <th>SĐT</th>
+            <th>Trạng thái</th>
+            <th>Phân bổ</th>
+            <th>Manager</th>
+            <th>Sale</th>
+            <th>Thời gian</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="lead in filteredLeads()" :key="lead.lead_id">
+            <tr class="clickable" @click="openLead(lead)">
+              <td><code class="text-xs text-surface-400" x-text="lead.lead_id"></code></td>
+              <td class="font-medium" x-text="lead.ho_ten"></td>
+              <td class="tnum text-surface-300" x-text="fmt.phone(lead.so_dien_thoai)"></td>
+              <td>
+                <span class="status-badge" :style="badgeStyle(lead.trang_thai_noi_bo)">
+                  <span class="status-dot" :style="{ background: statusColor(lead.trang_thai_noi_bo) }"></span>
+                  <span x-text="lead.trang_thai_noi_bo"></span>
+                </span>
+              </td>
+              <td><span class="text-xs text-surface-400" x-text="lead.trang_thai_phan_bo || '—'"></span></td>
+              <td class="text-xs">
+                <span x-show="lead.manager_id" x-text="userName(lead.manager_id)" class="text-surface-300"></span>
+                <span x-show="!lead.manager_id" class="text-surface-600">—</span>
+              </td>
+              <td class="text-xs">
+                <span x-show="lead.sale_id" x-text="userName(lead.sale_id)" class="text-surface-300"></span>
+                <span x-show="!lead.sale_id" class="text-surface-600">—</span>
+              </td>
+              <td class="text-xs text-surface-400" x-text="fmt.relative(lead.thoi_gian)"></td>
+            </tr>
+          </template>
+          <template x-if="!loading && !filteredLeads().length">
+            <tr>
+              <td colspan="8">
+                <div class="empty-state">
+                  <i data-lucide="inbox" class="empty-state-icon"></i>
+                  <div class="empty-state-title">Chưa có lead nào</div>
+                  <div class="empty-state-text">Dữ liệu sẽ tự động cập nhật khi có lead từ QC</div>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('adminDashboard', () => ({
+  auth: Alpine.store('auth'),
+  router: Alpine.store('router'),
+  loading: false,
+  metrics: { total: 0, today: 0, in_progress: 0, unassigned: 0, converted: 0, failed: 0, conversion_rate: 0, failure_rate: 0, hourly: [], by_status: {} },
+  leads: [],
+  users: [],
+  statusColors: {},
+  hourlyChart: null,
+  statusChart: null,
+  search: '',
+  filter: 'all',
+  poller: null,
+
+  async init() {
+    this._unloadHandler = () => this.destroy();
+    window.addEventListener('crm:route:unload', this._unloadHandler);
+    await this.loadStatus();
+    await this.loadUsers();
+    await this.refresh();
+    this.startPolling();
+    setTimeout(() => this.renderCharts(), 200);
+  },
+
+  destroy() {
+    if (this.poller) this.poller.stop();
+    if (this.hourlyChart) this.hourlyChart.destroy();
+    if (this.statusChart) this.statusChart.destroy();
+    if (this._unloadHandler) window.removeEventListener('crm:route:unload', this._unloadHandler);
+  },
+
+  startPolling() {
+    this.poller = new Poller(() => this.refresh(true), {
+      interval: 2000,
+      onError: (e) => console.warn('Polling error:', e.message)
+    });
+    this.poller.start();
+  },
+
+  async loadStatus() {
+    try {
+      const r = await api.listStatus();
+      this.statusColors = r.data.colors || {};
+    } catch (e) {}
+  },
+
+  async loadUsers() {
+    try {
+      const r = await api.listUsers({});
+      this.users = r.data || [];
+    } catch (e) {}
+  },
+
+  async refresh(silent) {
+    if (!silent) this.loading = true;
+    try {
+      const [overview, leadsRes, conv] = await Promise.all([
+        api.statsOverview(),
+        api.listLeads({ limit: 100 }),
+        api.statsConversion()
+      ]);
+      const o = overview.data;
+      this.metrics = {
+        total: o.total,
+        today: o.daily && o.daily.length ? o.daily[o.daily.length - 1].count : 0,
+        in_progress: o.in_progress,
+        unassigned: o.unassigned,
+        converted: o.converted,
+        failed: o.failed,
+        conversion_rate: conv.data.rates.conversion,
+        failure_rate: conv.data.rates.failure,
+        hourly: o.hourly || [],
+        by_status: o.by_status || {}
+      };
+      this.leads = leadsRes.data.items || [];
+      if (!silent) this.renderCharts();
+    } catch (e) {
+      if (!silent) toast.error('Không tải được dữ liệu: ' + e.message);
+    } finally {
+      if (!silent) this.loading = false;
+    }
+  },
+
+  async renderCharts() {
+    const Chart = await window.loadChartJs();
+    if (!Chart) return;
+
+    const hourlyData = this.metrics.hourly || [];
+    const hourlyLabels = hourlyData.map(h => h.hour + 'h');
+    const hourlyValues = hourlyData.map(h => h.count);
+
+    const hourlyCanvas = this.$refs.hourlyChart;
+    if (hourlyCanvas) {
+      if (this.hourlyChart) this.hourlyChart.destroy();
+      const ctx = hourlyCanvas.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+      gradient.addColorStop(0, 'rgba(99, 102, 241, 0.5)');
+      gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+      this.hourlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: hourlyLabels,
+          datasets: [{
+            label: 'Lead',
+            data: hourlyValues,
+            backgroundColor: gradient,
+            borderColor: '#818cf8',
+            borderWidth: 2,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(148,163,184,0.08)' }, ticks: { color: '#64748b', stepSize: 1 } }
+          }
+        }
+      });
+    }
+
+    const statusData = this.metrics.by_status || {};
+    const labels = Object.keys(statusData).filter(k => statusData[k] > 0).slice(0, 10);
+    const values = labels.map(k => statusData[k]);
+    const colors = labels.map(k => this.statusColors[k] || '#6366f1');
+
+    const statusCanvas = this.$refs.statusChart;
+    if (statusCanvas) {
+      if (this.statusChart) this.statusChart.destroy();
+      const ctx2 = statusCanvas.getContext('2d');
+      this.statusChart = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors,
+            borderColor: '#0f172a',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: '#cbd5e1', font: { size: 11 }, padding: 8, boxWidth: 12 }
+            }
+          }
+        }
+      });
+    }
+  },
+
+  filteredLeads() {
+    let arr = this.leads;
+    if (this.filter === 'unassigned') arr = arr.filter(l => !l.manager_id);
+    else if (this.filter === 'converted') arr = arr.filter(l => ['HV Mua chỉ báo','HV chuyên sâu','Đã học BMĐTHH','Xác nhận học'].indexOf(l.trang_thai_noi_bo) >= 0);
+    if (this.search) {
+      const q = this.search.toLowerCase();
+      arr = arr.filter(l => (l.ho_ten || '').toLowerCase().includes(q) || (l.so_dien_thoai || '').includes(q));
+    }
+    return arr.slice(0, 50);
+  },
+
+  setFilter(f) { this.filter = f; },
+  statusColor(s) { return this.statusColors[s] || '#64748b'; },
+  badgeStyle(s) {
+    const c = this.statusColor(s);
+    return `background:${c}20;border-color:${c}40;color:${c};`;
+  },
+  userName(id) {
+    if (!id) return '—';
+    const u = this.users.find(x => x.user_id === id);
+    return u ? u.full_name : id;
+  },
+  openLead(lead) {
+    this.router.navigate('admin.lead', { id: lead.lead_id });
+  },
+  openCreateLead() {
+    const self = this;
+    openModal({
+      title: 'Thêm lead mới',
+      size: 'md',
+      html: `
+        <form id="createLeadForm" class="space-y-4">
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Họ tên *</label>
+              <input class="form-input" name="ho_ten" required />
+            </div>
+            <div>
+              <label class="form-label">Số điện thoại *</label>
+              <input class="form-input" name="so_dien_thoai" required />
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Trạng thái</label>
+            <select class="form-select" name="trang_thai_noi_bo">
+              <option value="Nhận contact">Nhận contact</option>
+              <option value="Đang chăm sóc">Đang chăm sóc</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Ghi chú</label>
+            <textarea class="form-textarea" name="ghi_chu_noi_bo"></textarea>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" class="btn btn-secondary" onclick="closeLastModal()">Hủy</button>
+            <button type="submit" class="btn btn-primary">Tạo</button>
+          </div>
+        </form>
+      `
+    });
+    setTimeout(() => {
+      const f = document.getElementById('createLeadForm');
+      if (!f) return;
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(f);
+        const payload = Object.fromEntries(fd);
+        try {
+          await api.createLead(payload);
+          toast.success('Tạo lead thành công');
+          closeLastModal();
+          self.refresh();
+        } catch (err) {
+          toast.error(err.message);
+        }
+      };
+    }, 100);
+  }
+}));
+
+function closeLastModal() {
+  const layer = document.querySelector('[x-data="modalLayer"]');
+  if (layer && Alpine) {
+    const data = Alpine.$data(layer);
+    if (data && data.stack && data.stack.length) data.close(data.stack[data.stack.length-1].id);
+  }
+}
+</script>

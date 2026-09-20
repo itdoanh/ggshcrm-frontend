@@ -1,0 +1,307 @@
+<!-- views/lead-assign.html - Manual Lead Assignment UI -->
+
+<div x-data="leadAssign()">
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">
+        <i data-lucide="user-check" class="inline w-6 h-6 mr-2"></i>
+        Phân bổ Lead
+      </h1>
+      <p class="text-sm text-surface-400">Chia lead cho Manager/Leader/Sale thủ công hoặc xem auto-distribution</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+        Làm mới
+      </button>
+    </div>
+  </div>
+
+  <!-- Auto-distribute Mode Toggle -->
+  <div class="card mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="font-semibold text-white">Chế độ phân bổ</div>
+        <div class="text-sm text-surface-400">
+          <span x-show="distributionStatus.autoDistribute">
+            <i data-lucide="zap" class="inline w-4 h-4 text-green-400"></i>
+            Tự động - Lead được chia round-robin theo cấu hình
+          </span>
+          <span x-show="!distributionStatus.autoDistribute">
+            <i data-lucide="hand" class="inline w-4 h-4 text-orange-400"></i>
+            Thủ công - Bạn cần gán từng lead cho người phụ trách
+          </span>
+        </div>
+      </div>
+      <button @click="toggleMode()" class="btn btn-secondary" :disabled="togglingMode">
+        <span x-show="distributionStatus.autoDistribute">Chuyển sang thủ công</span>
+        <span x-show="!distributionStatus.autoDistribute">Chuyển sang tự động</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Level Filter -->
+  <div class="flex items-center gap-2 mb-6 border-b border-surface-700">
+    <button @click="filterLevel = 'all'" 
+            :class="filterLevel === 'all' ? 'border-b-2 border-primary text-primary' : 'text-surface-400'"
+            class="px-4 py-2 font-medium">Tất cả</button>
+    <button @click="filterLevel = 'pending'" 
+            :class="filterLevel === 'pending' ? 'border-b-2 border-primary text-primary' : 'text-surface-400'"
+            class="px-4 py-2 font-medium">Chưa gán</button>
+    <button @click="filterLevel = 'assigned'" 
+            :class="filterLevel === 'assigned' ? 'border-b-2 border-primary text-primary' : 'text-surface-400'"
+            class="px-4 py-2 font-medium">Đã gán</button>
+  </div>
+
+  <!-- Handler Cards (Quick Stats) -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <template x-for="handler in handlers" :key="handler.id">
+      <div class="card hover-lift">
+        <div class="flex items-start justify-between">
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-surface-400 capitalize" x-text="handler.level"></div>
+            <div class="font-semibold text-white truncate" x-text="handler.name"></div>
+          </div>
+          <span class="badge text-xs" 
+                :style="handler.currentLoad >= handler.maxLoad ? 'background:rgba(244,63,94,0.15);color:#f43f5e;' : 'background:rgba(34,197,94,0.15);color:#22c55e;'"
+                x-text="(handler.currentLoad >= handler.maxLoad ? 'FULL' : 'OK')">
+          </span>
+        </div>
+        <div class="mt-3">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-surface-400">Tải</span>
+            <span class="text-surface-300">
+              <span x-text="handler.currentLoad"></span> / <span x-text="handler.maxLoad"></span>
+            </span>
+          </div>
+          <div class="h-1.5 bg-surface-800 rounded-full overflow-hidden">
+            <div class="h-full transition-all" 
+                 :style="'width:' + Math.min(100, handler.maxLoad ? (handler.currentLoad/handler.maxLoad)*100 : 0) + '%;background:' + (handler.currentLoad >= handler.maxLoad ? '#f43f5e' : '#22c55e')"></div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Lead Table -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Leads <span class="text-surface-400 font-normal" x-text="'(' + filteredLeads.length + ')'"></span></div>
+        <div class="card-subtitle" x-show="distributionStatus.autoDistribute">Auto-distribute đang bật - Bảng dưới hiển thị trạng thái phân bổ</div>
+        <div class="card-subtitle" x-show="!distributionStatus.autoDistribute">Chọn người phụ trách từ dropdown để gán lead</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Lead ID</th>
+            <th>Họ tên</th>
+            <th>SĐT</th>
+            <th>Trạng thái</th>
+            <th>Ngày</th>
+            <th>Người phụ trách</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="lead in pagedLeads" :key="lead.lead_id">
+            <tr>
+              <td class="text-xs font-mono text-surface-500" x-text="lead.lead_id"></td>
+              <td x-text="lead.ho_ten || '-'"></td>
+              <td class="text-sm" x-text="lead.so_dien_thoai || '-'"></td>
+              <td>
+                <span class="status-badge text-xs" x-text="lead.trang_thai_noi_bo || 'Mới'"></span>
+              </td>
+              <td class="text-xs text-surface-400" x-text="formatDate(lead.created_at)"></td>
+              <td>
+                <select @change="assignLead(lead, $event.target.value)" 
+                        class="form-input text-sm"
+                        :disabled="distributionStatus.autoDistribute">
+                  <option value="">-- Chọn --</option>
+                  <optgroup label="Manager">
+                    <template x-for="h in handlers.filter(x => x.level === 'manager')" :key="h.id">
+                      <option :value="h.id" x-text="h.name + ' (' + h.currentLoad + '/' + h.maxLoad + ')'"></option>
+                    </template>
+                  </optgroup>
+                  <optgroup label="Leader">
+                    <template x-for="h in handlers.filter(x => x.level === 'leader')" :key="h.id">
+                      <option :value="h.id" x-text="h.name + ' (' + h.currentLoad + '/' + h.maxLoad + ')'"></option>
+                    </template>
+                  </optgroup>
+                  <optgroup label="Sale">
+                    <template x-for="h in handlers.filter(x => x.level === 'sale')" :key="h.id">
+                      <option :value="h.id" x-text="h.name + ' (' + h.currentLoad + '/' + h.maxLoad + ')'"></option>
+                    </template>
+                  </optgroup>
+                </select>
+              </td>
+              <td>
+                <button @click="viewLead(lead)" class="btn btn-secondary btn-sm">
+                  <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div x-show="filteredLeads.length === 0" class="empty-state">
+        <i data-lucide="inbox"></i>
+        <div class="empty-state-title">Không có lead nào</div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div x-show="filteredLeads.length > pageSize" class="flex items-center justify-between mt-4 pt-4 border-t border-surface-700">
+      <div class="text-sm text-surface-400">
+        Hiển thị <span x-text="((page-1)*pageSize)+1"></span>-<span x-text="Math.min(page*pageSize, filteredLeads.length)"></span>
+        / <span x-text="filteredLeads.length"></span>
+      </div>
+      <div class="flex gap-2">
+        <button @click="page = Math.max(1, page-1)" :disabled="page === 1" class="btn btn-secondary btn-sm">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <span class="px-3 py-1 text-sm text-surface-300" x-text="page + ' / ' + Math.ceil(filteredLeads.length/pageSize)"></span>
+        <button @click="page = Math.min(Math.ceil(filteredLeads.length/pageSize), page+1)" :disabled="page >= Math.ceil(filteredLeads.length/pageSize)" class="btn btn-secondary btn-sm">
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent('leadAssign', () => ({
+  leads: [],
+  handlers: [],
+  distributionStatus: { autoDistribute: true, levels: {} },
+  loading: false,
+  togglingMode: false,
+  filterLevel: 'pending',
+  page: 1,
+  pageSize: 20,
+
+  async init() {
+    await this.refresh();
+    setTimeout(() => window.ic && window.ic.render(), 100);
+  },
+
+  destroy() {
+    // Cleanup
+  },
+
+  async refresh() {
+    this.loading = true;
+    try {
+      // Load distribution status + leads + handlers song song
+      const [statusRes, leadsRes, hubRes] = await Promise.all([
+        api.call('distributionGetStatus', {}),
+        api.call('leadsList', { limit: 200 }),
+        api.call('hubGetAll', {})
+      ]);
+
+      if (statusRes.ok) this.distributionStatus = statusRes.data;
+      
+      if (leadsRes.ok) {
+        this.leads = leadsRes.data.leads || leadsRes.data.items || [];
+      }
+
+      // Build handlers list từ Hub tree
+      if (hubRes.ok) {
+        this.handlers = [];
+        for (const levelNode of hubRes.data.tree) {
+          for (const sheet of levelNode.sheets) {
+            this.handlers.push({
+              id: sheet.id,
+              name: sheet.name,
+              level: levelNode.level,
+              maxLoad: sheet.maxLoad,
+              currentLoad: sheet.currentLoad
+            });
+          }
+        }
+      }
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.loading = false;
+      setTimeout(() => window.ic && window.ic.render(), 100);
+    }
+  },
+
+  get filteredLeads() {
+    if (this.filterLevel === 'pending') {
+      return this.leads.filter(l => !l.manager_id && !l.leader_id && !l.sale_id);
+    } else if (this.filterLevel === 'assigned') {
+      return this.leads.filter(l => l.manager_id || l.leader_id || l.sale_id);
+    }
+    return this.leads;
+  },
+
+  get pagedLeads() {
+    const start = (this.page - 1) * this.pageSize;
+    return this.filteredLeads.slice(start, start + this.pageSize);
+  },
+
+  formatDate(iso) {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return iso; }
+  },
+
+  async assignLead(lead, handlerId) {
+    if (!handlerId) return;
+    const handler = this.handlers.find(h => h.id === handlerId);
+    if (!handler) return;
+
+    try {
+      // Gọi API update lead assignment
+      const updateData = {};
+      if (handler.level === 'manager') updateData.manager_id = handler.name; // Hoặc map sang user_id
+      if (handler.level === 'leader') updateData.leader_id = handler.name;
+      if (handler.level === 'sale') updateData.sale_id = handler.name;
+
+      const res = await api.call('leadUpdate', { leadId: lead.lead_id, ...updateData });
+      if (res.ok) {
+        toast.success('Đã gán lead cho ' + handler.name);
+        // Update local state
+        Object.assign(lead, updateData);
+        await this.refresh();
+      } else {
+        toast.error(res.error || 'Lỗi gán lead');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  },
+
+  async toggleMode() {
+    if (this.togglingMode) return;
+    this.togglingMode = true;
+    try {
+      const res = await api.call('distributionSetAuto', { enabled: !this.distributionStatus.autoDistribute });
+      if (res.ok) {
+        toast.success(this.distributionStatus.autoDistribute ? 'Đã chuyển sang thủ công' : 'Đã bật auto-distribute');
+        await this.refresh();
+      } else {
+        toast.error(res.error || 'Lỗi');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.togglingMode = false;
+    }
+  },
+
+  viewLead(lead) {
+    // Mở modal hoặc navigate đến lead detail
+    window.router.navigate('admin.lead', { id: lead.lead_id });
+  }
+}));
+</script>

@@ -1,0 +1,16 @@
+<!-- views/shell.html - Sidebar + Topbar (chứa các phần tử lặp lại giữa các view) -->
+
+<!-- (Các phần tử sidebar/topbar đã được inject qua Alpine component trong bootstrap.js.
+     File này dùng cho việc reference - sidebar/topbar không cần view riêng.) -->
+
+<template id="tpl-sidebar-footer">
+  <div class="sidebar-footer">
+    <div class="topbar-user" @click="logout()">
+      <div class="user-avatar" x-text="auth.initials()"></div>
+      <div class="user-info">
+        <div class="user-name" x-text="auth.fullName()"></div>
+        <div class="user-role" x-text="(APP_ROLES[auth.user && auth.user.role] || {}).label"></div>
+      </div>
+    </div>
+  </div>
+</template>

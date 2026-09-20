@@ -1,0 +1,315 @@
+<!-- views/settings.html - Distribution Settings -->
+
+<div x-data="distributionSettings()">
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">
+        <i data-lucide="settings" class="inline w-6 h-6 mr-2"></i>
+        Cài đặt Phân bổ
+      </h1>
+      <p class="text-sm text-surface-400">Cấu hình cách lead được phân chia cho các Manager/Leader/Sale</p>
+    </div>
+    <button @click="refresh()" class="btn btn-secondary" :disabled="loading">
+      <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      Làm mới
+    </button>
+  </div>
+
+  <!-- Auto-distribute Toggle -->
+  <div class="card mb-6">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Phân bổ tự động</div>
+        <div class="card-subtitle">Khi bật, lead sẽ được tự động chia theo round-robin có trọng số. Khi tắt, dùng giao diện Phân bổ Thủ công.</div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between p-4 bg-surface-900 rounded-lg">
+      <div class="flex items-center gap-3">
+        <div class="metric-icon" 
+             :style="status.autoDistribute ? 'background:rgba(34,197,94,0.15);color:#22c55e;width:48px;height:48px;' : 'background:rgba(244,63,94,0.15);color:#f43f5e;width:48px;height:48px;'">
+          <i :data-lucide="status.autoDistribute ? 'zap' : 'zap-off'" style="width:24px;height:24px;"></i>
+        </div>
+        <div>
+          <div class="font-semibold text-white text-lg" x-text="status.autoDistribute ? 'Đang bật' : 'Đang tắt'"></div>
+          <div class="text-sm text-surface-400" x-text="status.autoDistribute ? 'Lead được chia tự động' : 'Cần chia thủ công'"></div>
+        </div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" x-model="status.autoDistribute" @change="toggleAuto()">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Distribution Algorithm Info -->
+  <div class="card mb-6">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Thuật toán Round-Robin có trọng số</div>
+        <div class="card-subtitle">Cách hệ thống phân chia lead</div>
+      </div>
+    </div>
+    <div class="space-y-3 text-sm text-surface-300 p-4 bg-surface-900 rounded-lg">
+      <div class="flex items-start gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-green-400 mt-0.5"></i>
+        <div>Vòng lặp qua các sheet theo thứ tự (1 → 2 → 3 → ... → 1)</div>
+      </div>
+      <div class="flex items-start gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-green-400 mt-0.5"></i>
+        <div>Mỗi sheet có <strong>Max Load</strong> riêng - khi đạt giới hạn, tự động chuyển sang sheet tiếp theo</div>
+      </div>
+      <div class="flex items-start gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-green-400 mt-0.5"></i>
+        <div>Nếu tất cả sheet đều đầy, lead sẽ được gán cho sheet <strong>ít tải nhất</strong></div>
+      </div>
+      <div class="flex items-start gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-green-400 mt-0.5"></i>
+        <div>Phân bổ áp dụng cho cả 3 cấp: Manager → Leader → Sale</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-level Settings -->
+  <div class="card mb-6">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Cấu hình theo Level</div>
+        <div class="card-subtitle">Điều chỉnh Max Load cho từng sheet</div>
+      </div>
+    </div>
+
+    <div x-show="!loading" class="space-y-4">
+      <template x-for="levelName in Object.keys(status.levels || {})" :key="levelName">
+        <div class="bg-surface-900 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="font-semibold text-white capitalize text-lg" x-text="levelName"></h4>
+            <div class="text-sm text-surface-400">
+              Tổng tải: <span class="text-white font-medium" x-text="getLevelTotalLoad(levelName)"></span> / <span class="text-white font-medium" x-text="getLevelTotalMax(levelName)"></span>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <template x-for="sheet in (status.levels[levelName]?.sheets || [])" :key="sheet.id">
+              <div class="flex items-center gap-3 p-3 bg-surface-800 rounded-lg">
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-white truncate" x-text="sheet.name"></div>
+                  <div class="text-xs text-surface-500 truncate" x-text="sheet.id"></div>
+                </div>
+                <div class="text-sm text-surface-400">
+                  Hiện tại: <span class="text-white font-medium" x-text="sheet.currentLoad"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-surface-400">Max:</label>
+                  <input type="number" 
+                         :value="sheet.maxLoad"
+                         @change.debounce.500ms="updateSheetMaxLoad(sheet, $event.target.value)"
+                         class="form-input text-sm w-24"
+                         min="1">
+                </div>
+                <span class="badge text-xs whitespace-nowrap" 
+                      :style="sheet.isNext ? 'background:rgba(99,102,241,0.15);color:#6366f1;' : 'background:rgba(107,114,128,0.15);color:#9ca3af;'"
+                      x-text="sheet.isNext ? 'NEXT' : 'WAIT'">
+                </span>
+              </div>
+            </template>
+          </div>
+
+          <!-- Reset button -->
+          <button @click="resetIndex(levelName)" class="btn btn-secondary btn-sm mt-3">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            Reset vòng lặp cho level <span x-text="levelName"></span>
+          </button>
+        </div>
+      </template>
+
+      <div x-show="Object.keys(status.levels || {}).length === 0" class="empty-state">
+        <i data-lucide="layers"></i>
+        <div class="empty-state-title">Chưa có sheet nào được cấu hình</div>
+        <div class="empty-state-text">Vào Sheet Hub để thêm sheets cho hệ thống</div>
+      </div>
+    </div>
+
+    <div x-show="loading" class="text-center py-8">
+      <i data-lucide="loader" class="animate-spin mx-auto" style="width:32px;height:32px;color:#6366f1;"></i>
+    </div>
+  </div>
+
+  <!-- Frontend Domain Whitelist -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Domain Whitelist</div>
+        <div class="card-subtitle">Chỉ chấp nhận API requests từ các domain này</div>
+      </div>
+    </div>
+
+    <div class="space-y-3 p-4 bg-surface-900 rounded-lg">
+      <template x-for="(domain, idx) in whitelist" :key="idx">
+        <div class="flex items-center gap-2">
+          <i data-lucide="globe" class="w-4 h-4 text-surface-400"></i>
+          <input type="text" 
+                 :value="domain" 
+                 @change.debounce.500ms="updateDomain(idx, $event.target.value)"
+                 class="form-input text-sm flex-1">
+          <button @click="removeDomain(idx)" class="btn btn-danger btn-sm">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </template>
+
+      <div class="flex items-center gap-2 pt-2 border-t border-surface-700">
+        <input type="text" x-model="newDomain" placeholder="vd: crm.example.com" class="form-input text-sm flex-1">
+        <button @click="addDomain()" class="btn btn-primary btn-sm">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          Thêm
+        </button>
+      </div>
+
+      <div class="text-xs text-surface-500 mt-2">
+        <i data-lucide="info" class="inline w-3 h-3"></i>
+        Whitelist trống = chấp nhận tất cả origins (dev mode). Localhost luôn được phép.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent('distributionSettings', () => ({
+  status: { autoDistribute: true, levels: {} },
+  whitelist: [],
+  newDomain: '',
+  loading: false,
+
+  async init() {
+    await this.refresh();
+    setTimeout(() => window.ic && window.ic.render(), 100);
+  },
+
+  destroy() {},
+
+  async refresh() {
+    this.loading = true;
+    try {
+      const [statusRes, configRes] = await Promise.all([
+        api.call('distributionGetStatus', {}),
+        api.call('configAll', {})
+      ]);
+      if (statusRes.ok) this.status = statusRes.data;
+      // Whitelist từ config (nếu có)
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.loading = false;
+      setTimeout(() => window.ic && window.ic.render(), 100);
+    }
+  },
+
+  async toggleAuto() {
+    try {
+      const res = await api.call('hubSetAutoDistribute', { enabled: this.status.autoDistribute });
+      if (res.ok) {
+        toast.success(this.status.autoDistribute ? 'Đã bật auto-distribute' : 'Đã tắt auto-distribute');
+      } else {
+        toast.error(res.error || 'Lỗi');
+        this.status.autoDistribute = !this.status.autoDistribute;
+      }
+    } catch (e) {
+      toast.error(e.message);
+      this.status.autoDistribute = !this.status.autoDistribute;
+    }
+  },
+
+  async updateSheetMaxLoad(sheet, newMaxLoad) {
+    const val = parseInt(newMaxLoad);
+    if (!val || val < 1) {
+      toast.error('Max Load phải > 0');
+      return;
+    }
+    try {
+      const res = await api.call('hubUpdateSheet', {
+        sheetId: sheet.id,
+        updates: { maxLoad: val }
+      });
+      if (res.ok) {
+        toast.success('Đã cập nhật Max Load');
+        await this.refresh();
+      } else {
+        toast.error(res.error || 'Lỗi');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  },
+
+  async resetIndex(levelName) {
+    if (!confirm(`Reset vòng lặp cho level "${levelName}"?`)) return;
+    try {
+      const res = await api.call('distributionResetIndex', { level: levelName });
+      if (res.ok) {
+        toast.success('Đã reset vòng lặp');
+        await this.refresh();
+      } else {
+        toast.error(res.error || 'Lỗi');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  },
+
+  getLevelTotalLoad(levelName) {
+    return (this.status.levels[levelName]?.sheets || []).reduce((sum, s) => sum + s.currentLoad, 0);
+  },
+
+  getLevelTotalMax(levelName) {
+    return (this.status.levels[levelName]?.sheets || []).reduce((sum, s) => sum + s.maxLoad, 0);
+  },
+
+  async addDomain() {
+    if (!this.newDomain.trim()) return;
+    try {
+      const res = await api.call('configSetFrontendWhitelist', { 
+        domains: [...this.whitelist, this.newDomain.trim()] 
+      });
+      if (res.ok) {
+        this.whitelist = res.data;
+        this.newDomain = '';
+        toast.success('Đã thêm domain');
+      } else {
+        toast.error(res.error || 'Lỗi');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  },
+
+  async removeDomain(idx) {
+    const newList = this.whitelist.filter((_, i) => i !== idx);
+    try {
+      const res = await api.call('configSetFrontendWhitelist', { domains: newList });
+      if (res.ok) {
+        this.whitelist = res.data;
+        toast.success('Đã xóa domain');
+      } else {
+        toast.error(res.error || 'Lỗi');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  },
+
+  async updateDomain(idx, value) {
+    const newList = [...this.whitelist];
+    newList[idx] = value;
+    try {
+      const res = await api.call('configSetFrontendWhitelist', { domains: newList });
+      if (res.ok) {
+        this.whitelist = res.data;
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  }
+}));
+</script>

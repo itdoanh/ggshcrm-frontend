@@ -1,0 +1,456 @@
+<!-- views/sheet-hub.html - Quản lý các Google Sheets trong CRM (Sheet Hub) -->
+
+<div x-data="sheetHub()">
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">
+        <i data-lucide="layout-grid" class="inline w-6 h-6 mr-2"></i>
+        Sheet Hub
+      </h1>
+      <p class="text-sm text-surface-400">Quản lý các Google Sheets (Source, Manager, Leader, Sale) trong hệ thống CRM</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+        Làm mới
+      </button>
+      <button class="btn btn-primary" @click="openAddModal()">
+        <i data-lucide="plus"></i>
+        Thêm Sheet
+      </button>
+    </div>
+  </div>
+
+  <!-- Auto-distribute Status -->
+  <div class="card mb-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="metric-icon" :style="config.autoDistribute ? 'background:rgba(34,197,94,0.15);color:#22c55e;' : 'background:rgba(244,63,94,0.15);color:#f43f5e;'">
+          <i :data-lucide="config.autoDistribute ? 'zap' : 'zap-off'"></i>
+        </div>
+        <div>
+          <div class="font-semibold text-white">Phân bổ tự động</div>
+          <div class="text-sm text-surface-400" x-text="config.autoDistribute ? 'Đang bật - Lead tự động chia theo round-robin có trọng số' : 'Đang tắt - Chia thủ công qua Lead Assignment'"></div>
+        </div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" x-model="config.autoDistribute" @change="toggleAutoDistribute()">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Level Tabs -->
+  <div class="flex items-center gap-2 mb-6 border-b border-surface-700 overflow-x-auto">
+    <button @click="activeLevel = 'all'" 
+            :class="activeLevel === 'all' ? 'border-b-2 border-primary text-primary' : 'text-surface-400'"
+            class="px-4 py-2 font-medium whitespace-nowrap">
+      Tất cả
+    </button>
+    <template x-for="level in levels" :key="level">
+      <button @click="activeLevel = level"
+              :class="activeLevel === level ? 'border-b-2 border-primary text-primary' : 'text-surface-400'"
+              class="px-4 py-2 font-medium capitalize whitespace-nowrap"
+              x-text="level">
+      </button>
+    </template>
+  </div>
+
+  <!-- Sheet Cards Grid -->
+  <div x-show="!loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <template x-for="sheet in filteredSheets" :key="sheet.id">
+      <div class="card hover-lift relative">
+        <!-- Level badge -->
+        <span class="absolute top-3 right-3 badge text-xs capitalize"
+              :class="getLevelBadgeClass(sheet.level)"
+              x-text="sheet.level"></span>
+
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="font-semibold text-white truncate" x-text="sheet.name"></h3>
+            <p class="text-xs text-surface-500 mt-1 truncate" x-text="sheet.id"></p>
+          </div>
+        </div>
+
+        <!-- Load progress -->
+        <div class="mb-3">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-surface-400">Tải hiện tại</span>
+            <span class="text-surface-300 font-medium">
+              <span x-text="sheet.currentLoad"></span> / <span x-text="sheet.maxLoad"></span>
+            </span>
+          </div>
+          <div class="h-2 bg-surface-800 rounded-full overflow-hidden">
+            <div class="h-full transition-all" 
+                 :style="'width:' + getLoadPercent(sheet) + '%;background:' + getLoadColor(sheet)"></div>
+          </div>
+        </div>
+
+        <!-- Tab info -->
+        <div class="text-xs text-surface-400 mb-4" x-show="sheet.tabName">
+          <i data-lucide="file-text" class="inline w-3 h-3 mr-1"></i>
+          Tab: <span class="text-surface-300" x-text="sheet.tabName"></span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2">
+          <button @click="editSheet(sheet)" class="btn btn-secondary btn-sm flex-1">
+            <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            Sửa
+          </button>
+          <button @click="deleteSheet(sheet)" class="btn btn-danger btn-sm flex-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            Xóa
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Empty state -->
+    <div x-show="filteredSheets.length === 0" class="col-span-full empty-state">
+      <i data-lucide="inbox" style="width:48px;height:48px;color:#6366f1;"></i>
+      <div class="empty-state-title">Chưa có Sheet nào</div>
+      <div class="empty-state-text">Thêm Google Sheet đầu tiên để bắt đầu quản lý</div>
+      <button @click="openAddModal()" class="btn btn-primary mt-4">
+        <i data-lucide="plus"></i>
+        Thêm Sheet
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div x-show="loading" class="text-center py-12">
+    <i data-lucide="loader" class="animate-spin mx-auto" style="width:32px;height:32px;color:#6366f1;"></i>
+    <div class="text-surface-400 mt-2">Đang tải...</div>
+  </div>
+
+  <!-- ADD/EDIT MODAL -->
+  <template x-if="showModal">
+    <div class="modal-overlay" @click.self="closeModal()">
+      <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+          <h3 class="modal-title" x-text="editingSheet ? 'Sửa Sheet' : 'Thêm Sheet Mới'"></h3>
+          <button @click="closeModal()" class="modal-close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <div class="modal-body space-y-4">
+          <!-- URL Input -->
+          <div x-show="!editingSheet">
+            <label class="form-label">Google Sheet URL hoặc ID *</label>
+            <div class="flex gap-2">
+              <input type="text" 
+                     x-model="form.sheetUrl" 
+                     @blur="validateSheet()"
+                     class="form-input flex-1" 
+                     placeholder="https://docs.google.com/spreadsheets/d/...">
+              <button @click="validateSheet()" class="btn btn-secondary" :disabled="form.validating">
+                <i data-lucide="search" :class="form.validating ? 'animate-spin' : ''"></i>
+                Kiểm tra
+              </button>
+            </div>
+            <p class="text-xs text-surface-500 mt-1">Paste URL hoặc Sheet ID, hệ thống sẽ tự động kiểm tra cấu trúc</p>
+          </div>
+
+          <!-- Validation Status -->
+          <div x-show="form.validationErrors.length > 0" class="alert alert-danger">
+            <i data-lucide="alert-circle"></i>
+            <div>
+              <div class="font-semibold mb-1">Sheet không phù hợp:</div>
+              <ul class="text-sm space-y-1">
+                <template x-for="err in form.validationErrors" :key="err">
+                  <li x-text="• " x-text="err"></li>
+                </template>
+              </ul>
+            </div>
+          </div>
+
+          <div x-show="form.validated && form.validationErrors.length === 0" class="alert alert-success">
+            <i data-lucide="check-circle"></i>
+            <div>
+              <div class="font-semibold">Sheet hợp lệ!</div>
+              <div class="text-sm">Đã tìm thấy <span x-text="form.structure.tabs.length"></span> tab(s). Tab chính: <span x-text="form.structure.primaryTab"></span></div>
+            </div>
+          </div>
+
+          <!-- Form fields -->
+          <div>
+            <label class="form-label">Level *</label>
+            <select x-model="form.level" class="form-input" :disabled="editingSheet">
+              <option value="">-- Chọn level --</option>
+              <option value="source">Source (Nguồn QC)</option>
+              <option value="manager">Manager</option>
+              <option value="leader">Leader</option>
+              <option value="sale">Sale</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label">Tên hiển thị *</label>
+            <input type="text" x-model="form.name" class="form-input" placeholder="VD: Manager Khu vực HCM">
+          </div>
+
+          <div>
+            <label class="form-label">Tab chính</label>
+            <select x-model="form.tabName" class="form-input" :disabled="!form.structure">
+              <option value="">-- Mặc định --</option>
+              <template x-for="tab in (form.structure?.tabs || [])" :key="tab.name">
+                <option :value="tab.name" x-text="tab.name + ' (' + tab.rowCount + ' rows)'"></option>
+              </template>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label">Max Load (tải tối đa)</label>
+            <input type="number" x-model.number="form.maxLoad" class="form-input" min="1" max="10000">
+            <p class="text-xs text-surface-500 mt-1">Số lead tối đa được gán cho sheet này (cho round-robin)</p>
+          </div>
+
+          <!-- Structure preview -->
+          <div x-show="form.structure" class="bg-surface-900 rounded-lg p-3">
+            <div class="text-xs font-semibold text-surface-300 mb-2">
+              <i data-lucide="layers" class="inline w-3.5 h-3.5 mr-1"></i>
+              Cấu trúc Sheet:
+            </div>
+            <div class="space-y-2 max-h-40 overflow-y-auto">
+              <template x-for="tab in form.structure.tabs" :key="tab.name">
+                <div class="text-xs">
+                  <div class="font-medium text-surface-200">
+                    📋 <span x-text="tab.name"></span> 
+                    <span class="text-surface-500">(<span x-text="tab.rowCount"></span> rows, <span x-text="tab.headers.length"></span> cols)</span>
+                  </div>
+                  <div class="text-surface-500 ml-4 truncate" x-text="tab.headers.join(', ')"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeModal()" class="btn btn-secondary">Hủy</button>
+          <button @click="saveSheet()" 
+                  class="btn btn-primary" 
+                  :disabled="!form.validated || !form.name || !form.level || form.saving">
+            <i data-lucide="save"></i>
+            <span x-text="editingSheet ? 'Cập nhật' : 'Thêm'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<script>
+window.registerCrmComponent('sheetHub', () => ({
+  config: { autoDistribute: true, tree: [] },
+  levels: [],
+  activeLevel: 'all',
+  loading: false,
+  showModal: false,
+  editingSheet: null,
+  form: {
+    sheetUrl: '',
+    name: '',
+    level: '',
+    tabName: '',
+    maxLoad: 100,
+    validating: false,
+    validated: false,
+    validationErrors: [],
+    structure: null,
+    saving: false
+  },
+
+  async init() {
+    await this.refresh();
+    setTimeout(() => window.ic && window.ic.render(), 100);
+  },
+
+  async refresh() {
+    this.loading = true;
+    try {
+      const res = await api.call('hubGetAll', {});
+      if (res.ok) {
+        this.config = { autoDistribute: res.data.autoDistribute, tree: res.data.tree };
+        this.levels = res.data.tree.map(n => n.level);
+      } else {
+        toast.error(res.error || 'Lỗi tải Sheet Hub');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.loading = false;
+      setTimeout(() => window.ic && window.ic.render(), 50);
+    }
+  },
+
+  get filteredSheets() {
+    const sheets = [];
+    for (const level of this.config.tree) {
+      if (this.activeLevel === 'all' || this.activeLevel === level.level) {
+        for (const sheet of level.sheets) {
+          sheets.push({ ...sheet, level: level.level });
+        }
+      }
+    }
+    return sheets;
+  },
+
+  getLoadPercent(sheet) {
+    if (!sheet.maxLoad) return 0;
+    return Math.min(100, Math.round((sheet.currentLoad / sheet.maxLoad) * 100));
+  },
+
+  getLoadColor(sheet) {
+    const pct = this.getLoadPercent(sheet);
+    if (pct < 60) return 'linear-gradient(90deg, #22c55e, #16a34a)';
+    if (pct < 90) return 'linear-gradient(90deg, #f59e0b, #d97706)';
+    return 'linear-gradient(90deg, #f43f5e, #e11d48)';
+  },
+
+  getLevelBadgeClass(level) {
+    const classes = {
+      source: 'bg-blue-500/20 text-blue-400',
+      manager: 'bg-purple-500/20 text-purple-400',
+      leader: 'bg-green-500/20 text-green-400',
+      sale: 'bg-orange-500/20 text-orange-400'
+    };
+    return classes[level] || 'bg-surface-700 text-surface-300';
+  },
+
+  openAddModal() {
+    this.editingSheet = null;
+    this.form = {
+      sheetUrl: '', name: '', level: '', tabName: '', maxLoad: 100,
+      validating: false, validated: false, validationErrors: [], structure: null, saving: false
+    };
+    this.showModal = true;
+    setTimeout(() => window.ic && window.ic.render(), 50);
+  },
+
+  editSheet(sheet) {
+    this.editingSheet = sheet;
+    this.form = {
+      sheetUrl: sheet.id,
+      name: sheet.name,
+      level: sheet.level,
+      tabName: sheet.tabName || '',
+      maxLoad: sheet.maxLoad || 100,
+      validating: false,
+      validated: true,
+      validationErrors: [],
+      structure: null,
+      saving: false
+    };
+    this.showModal = true;
+    setTimeout(() => window.ic && window.ic.render(), 50);
+  },
+
+  closeModal() {
+    this.showModal = false;
+    this.editingSheet = null;
+  },
+
+  async validateSheet() {
+    if (!this.form.sheetUrl || this.editingSheet) return;
+    this.form.validating = true;
+    this.form.validated = false;
+    this.form.validationErrors = [];
+    this.form.structure = null;
+    try {
+      const res = await api.call('hubValidateSheet', { sheetIdOrUrl: this.form.sheetUrl });
+      if (res.ok && res.data.valid) {
+        this.form.validated = true;
+        this.form.structure = res.data.structure;
+        if (!this.form.tabName) this.form.tabName = res.data.structure.primaryTab || '';
+        if (!this.form.name) this.form.name = res.data.structure.name || '';
+      } else {
+        this.form.validationErrors = (res.data && res.data.errors) || res.errors || [res.error || 'Sheet không hợp lệ'];
+      }
+    } catch (e) {
+      this.form.validationErrors = [e.message];
+    } finally {
+      this.form.validating = false;
+      setTimeout(() => window.ic && window.ic.render(), 50);
+    }
+  },
+
+  async saveSheet() {
+    if (this.form.saving) return;
+    this.form.saving = true;
+    try {
+      let res;
+      if (this.editingSheet) {
+        res = await api.call('hubUpdateSheet', {
+          sheetId: this.editingSheet.id,
+          updates: {
+            name: this.form.name,
+            maxLoad: this.form.maxLoad,
+            tabName: this.form.tabName
+          }
+        });
+      } else {
+        // Extract sheet ID từ URL
+        const sheetId = this.form.sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1] || this.form.sheetUrl;
+        res = await api.call('hubAddSheet', {
+          level: this.form.level,
+          sheetId: sheetId,
+          name: this.form.name,
+          maxLoad: this.form.maxLoad,
+          tabName: this.form.tabName
+        });
+      }
+      if (res.ok) {
+        toast.success(this.editingSheet ? 'Đã cập nhật Sheet' : 'Đã thêm Sheet mới');
+        this.closeModal();
+        await this.refresh();
+      } else {
+        toast.error(res.error || 'Lỗi lưu Sheet');
+        if (res.details) {
+          this.form.validationErrors = res.details;
+        }
+      }
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.form.saving = false;
+    }
+  },
+
+  async deleteSheet(sheet) {
+    if (!confirm(`Bạn có chắc muốn xóa Sheet "${sheet.name}"?`)) return;
+    try {
+      const res = await api.call('hubRemoveSheet', { sheetId: sheet.id });
+      if (res.ok) {
+        toast.success('Đã xóa Sheet');
+        await this.refresh();
+      } else {
+        toast.error(res.error || 'Lỗi xóa Sheet');
+      }
+    } catch (e) {
+      toast.error(e.message);
+    }
+  },
+
+  async toggleAutoDistribute() {
+    try {
+      const res = await api.call('hubSetAutoDistribute', { enabled: this.config.autoDistribute });
+      if (res.ok) {
+        toast.success(this.config.autoDistribute ? 'Đã bật auto-distribute' : 'Đã tắt auto-distribute');
+      } else {
+        toast.error(res.error || 'Lỗi');
+        this.config.autoDistribute = !this.config.autoDistribute;
+      }
+    } catch (e) {
+      toast.error(e.message);
+      this.config.autoDistribute = !this.config.autoDistribute;
+    }
+  },
+
+  destroy() {
+    // Cleanup nếu cần
+  }
+}));
+</script>

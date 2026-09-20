@@ -1,0 +1,242 @@
+<!-- views/users.html - Admin/Manager: Quản lý users -->
+
+<div x-data="usersPage">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">Quản lý nhân sự</h1>
+      <p class="text-sm text-surface-400">Tạo và quản lý tài khoản Admin / Manager / Leader / Sale</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      </button>
+      <button class="btn btn-primary" @click="openCreate()" x-show="canCreate">
+        <i data-lucide="plus"></i> Thêm user
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter tabs -->
+  <div class="flex items-center gap-2 mb-4">
+    <template x-for="r in roles" :key="r.value">
+      <button
+        class="btn btn-sm"
+        :class="filterRole === r.value ? 'btn-primary' : 'btn-secondary'"
+        @click="filterRole = r.value"
+      >
+        <i :data-lucide="r.icon" class="w-3.5 h-3.5"></i>
+        <span x-text="r.label + ' (' + countByRole(r.value) + ')'"></span>
+      </button>
+    </template>
+  </div>
+
+  <div class="card">
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>User ID</th>
+            <th>Họ tên</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Manager</th>
+            <th>Leader</th>
+            <th>Trạng thái</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="u in filteredUsers()" :key="u.user_id">
+            <tr>
+              <td><code class="text-xs text-surface-400" x-text="u.user_id"></code></td>
+              <td class="font-medium">
+                <div class="flex items-center gap-2">
+                  <div class="user-avatar" style="width:28px;height:28px;font-size:11px;" x-text="fmt.initials(u.full_name)"></div>
+                  <span x-text="u.full_name"></span>
+                </div>
+              </td>
+              <td><span class="text-surface-300" x-text="'@' + u.username"></span></td>
+              <td>
+                <span class="badge" :class="roleBadgeClass(u.role)" x-text="roleLabel(u.role)"></span>
+              </td>
+              <td class="text-xs text-surface-400" x-text="userName(u.manager_id) || '—'"></td>
+              <td class="text-xs text-surface-400" x-text="userName(u.leader_id) || '—'"></td>
+              <td>
+                <span class="badge" :class="u.active ? 'badge-emerald' : 'badge-rose'" x-text="u.active ? 'Hoạt động' : 'Đã khóa'"></span>
+              </td>
+              <td>
+                <button class="btn btn-ghost btn-sm" @click="openEdit(u)" x-show="canEdit">
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                </button>
+                <button class="btn btn-ghost btn-sm" @click="toggleActive(u)" x-show="canEdit && u.user_id !== auth.user.user_id">
+                  <i :data-lucide="u.active ? 'lock' : 'unlock'" class="w-3.5 h-3.5"></i>
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('usersPage', () => ({
+  auth: Alpine.store('auth'),
+  loading: false,
+  users: [],
+  filterRole: 'all',
+  roles: [
+    { value: 'all', label: 'Tất cả', icon: 'users' },
+    { value: 'admin', label: 'Admin', icon: 'shield' },
+    { value: 'manager', label: 'Quản lý', icon: 'users' },
+    { value: 'leader', label: 'Leader', icon: 'user-check' },
+    { value: 'sale', label: 'Sale', icon: 'headphones' }
+  ],
+
+  get canCreate() { return this.auth.user.role === 'admin'; },
+  get canEdit() { return this.auth.user.role === 'admin'; },
+
+  async init() { await this.refresh(); },
+  async refresh() {
+    this.loading = true;
+    try {
+      const r = await api.listUsers({});
+      this.users = r.data || [];
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      this.loading = false;
+    }
+  },
+
+  countByRole(role) {
+    if (role === 'all') return this.users.length;
+    return this.users.filter(u => u.role === role).length;
+  },
+
+  filteredUsers() {
+    if (this.filterRole === 'all') return this.users;
+    return this.users.filter(u => u.role === this.filterRole);
+  },
+
+  roleLabel(r) {
+    return (window.APP_ROLES[r] || {}).label || r;
+  },
+  roleBadgeClass(r) {
+    return { admin: 'badge-rose', manager: 'badge-amber', leader: 'badge-sky', sale: 'badge-emerald' }[r] || 'badge-slate';
+  },
+  userName(id) {
+    if (!id) return null;
+    const u = this.users.find(x => x.user_id === id);
+    return u ? u.full_name : null;
+  },
+
+  openCreate() {
+    const self = this;
+    openModal({
+      title: 'Tạo user mới',
+      size: 'md',
+      html: `
+        <form id="createUserForm" class="space-y-4">
+          <div class="grid-2">
+            <div><label class="form-label">Username *</label><input class="form-input" name="username" required /></div>
+            <div><label class="form-label">Password *</label><input class="form-input" name="password" type="password" required minlength="6" /></div>
+          </div>
+          <div><label class="form-label">Họ tên</label><input class="form-input" name="full_name" /></div>
+          <div><label class="form-label">Role *</label>
+            <select class="form-select" name="role" required>
+              <option value="">-- Chọn --</option>
+              <option value="manager">Quản lý</option>
+              <option value="leader">Leader</option>
+              <option value="sale">Sale</option>
+            </select>
+          </div>
+          <div><label class="form-label">Email</label><input class="form-input" name="email" type="email" /></div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" class="btn btn-secondary" onclick="closeLastModal()">Hủy</button>
+            <button type="submit" class="btn btn-primary">Tạo</button>
+          </div>
+        </form>
+      `
+    });
+    setTimeout(() => {
+      const f = document.getElementById('createUserForm');
+      if (!f) return;
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(f);
+        const payload = Object.fromEntries(fd);
+        if (!payload.password || payload.password.length < 6) {
+          toast.error('Password phải >= 6 ký tự');
+          return;
+        }
+        try {
+          await api.createUser(payload);
+          toast.success('Tạo user thành công');
+          closeLastModal();
+          self.refresh();
+        } catch (err) {
+          toast.error(err.message);
+        }
+      };
+    }, 100);
+  },
+
+  openEdit(u) {
+    const self = this;
+    openModal({
+      title: 'Sửa user: ' + u.full_name,
+      size: 'md',
+      html: `
+        <form id="editUserForm" class="space-y-4">
+          <div><label class="form-label">Họ tên</label><input class="form-input" name="full_name" value="${fmt.escapeHtml(u.full_name)}" /></div>
+          <div><label class="form-label">Password mới (để trống nếu không đổi)</label><input class="form-input" name="password" type="password" minlength="6" /></div>
+          <div><label class="form-label">Email</label><input class="form-input" name="email" value="${fmt.escapeHtml(u.email || '')}" /></div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" class="btn btn-secondary" onclick="closeLastModal()">Hủy</button>
+            <button type="submit" class="btn btn-primary">Lưu</button>
+          </div>
+        </form>
+      `
+    });
+    setTimeout(() => {
+      const f = document.getElementById('editUserForm');
+      if (!f) return;
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(f);
+        const payload = Object.fromEntries(fd);
+        if (!payload.password) delete payload.password;
+        try {
+          await api.updateUser(Object.assign({ user_id: u.user_id }, payload));
+          toast.success('Đã lưu');
+          closeLastModal();
+          self.refresh();
+        } catch (err) {
+          toast.error(err.message);
+        }
+      };
+    }, 100);
+  },
+
+  async toggleActive(u) {
+    if (!confirm((u.active ? 'Khóa' : 'Mở khóa') + ' user ' + u.full_name + '?')) return;
+    try {
+      await api.updateUser({ user_id: u.user_id, active: !u.active });
+      toast.success('Đã cập nhật');
+      this.refresh();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  }
+}));
+
+function closeLastModal() {
+  const layer = document.querySelector('[x-data="modalLayer"]');
+  if (layer && Alpine) {
+    const data = Alpine.$data(layer);
+    if (data && data.stack && data.stack.length) data.close(data.stack[data.stack.length-1].id);
+  }
+}
+</script>

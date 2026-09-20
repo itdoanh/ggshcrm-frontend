@@ -1,0 +1,411 @@
+<!-- views/sale.html - Sale Workspace cao cấp (kanban + quick actions + timeline) -->
+
+<div x-data="saleWorkspace" class="h-full">
+  <!-- Top toolbar -->
+  <div class="flex items-center justify-between mb-4 gap-3">
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl font-bold text-white">Workspace</h1>
+      <span class="status-badge status-success">
+        <span class="status-dot live-blink" style="background:#10b981;"></span>
+        Live
+      </span>
+      <span class="text-xs text-surface-500" x-text="'Cập nhật ' + fmt.relative(lastUpdate)"></span>
+    </div>
+    <div class="flex items-center gap-2 flex-1 justify-end">
+      <!-- View toggle -->
+      <div class="flex bg-surface-800/50 rounded-lg p-0.5 border border-surface-700/50">
+        <button
+          class="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+          :class="viewMode==='kanban' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'"
+          @click="viewMode='kanban'"
+        >
+          <i data-lucide="layout-grid" class="w-3.5 h-3.5 inline-block mr-1"></i> Kanban
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+          :class="viewMode==='list' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'"
+          @click="viewMode='list'"
+        >
+          <i data-lucide="list" class="w-3.5 h-3.5 inline-block mr-1"></i> Danh sách
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="relative max-w-xs">
+        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500"></i>
+        <input
+          type="search"
+          class="form-input pl-9 py-1.5 text-sm"
+          placeholder="Tìm..."
+          x-model="search"
+        />
+      </div>
+
+      <button class="btn btn-secondary btn-sm" @click="refresh()">
+        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Kanban View -->
+  <div x-show="viewMode==='kanban'" class="kanban" style="height: calc(100vh - 180px);">
+    <template x-for="col in kanbanColumns" :key="col.key">
+      <div
+        class="kanban-column"
+        :class="{ 'drag-over': dragOver === col.key }"
+        @dragover.prevent="dragOver = col.key"
+        @dragleave="dragOver = null"
+        @drop.prevent="onDrop($event, col.key)"
+      >
+        <div class="kanban-column-header">
+          <div class="kanban-column-title">
+            <span class="status-dot" :style="{ background: col.color, width: '8px', height: '8px' }"></span>
+            <span x-text="col.label"></span>
+          </div>
+          <span class="kanban-column-count" x-text="leadsByCol(col.key).length"></span>
+        </div>
+        <div class="kanban-list">
+          <template x-for="lead in leadsByCol(col.key)" :key="lead.lead_id">
+            <div
+              class="kanban-card"
+              draggable="true"
+              @dragstart="onDragStart($event, lead)"
+              @dragend="onDragEnd($event)"
+              @click="selectLead(lead)"
+            >
+              <div class="kanban-card-name truncate-1" x-text="lead.ho_ten"></div>
+              <div class="kanban-card-phone tnum" x-text="fmt.phone(lead.so_dien_thoai)"></div>
+              <div class="kanban-card-meta">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="phone" class="w-3 h-3"></i>
+                  <a :href="'tel:' + lead.so_dien_thoai" @click.stop class="hover:text-brand-400">Gọi</a>
+                </span>
+                <span x-text="fmt.relative(lead.updated_at || lead.thoi_gian)"></span>
+              </div>
+              <div x-show="lead.ghi_chu_noi_bo" class="mt-2 text-xs text-surface-400 truncate-1" x-text="lead.ghi_chu_noi_bo"></div>
+            </div>
+          </template>
+          <div x-show="!leadsByCol(col.key).length" class="text-center text-xs text-surface-600 py-8">
+            Trống
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- List View -->
+  <div x-show="viewMode==='list'" class="card">
+    <div class="data-table-wrap" style="max-height: calc(100vh - 240px);">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Họ tên</th>
+            <th>SĐT</th>
+            <th>Trạng thái</th>
+            <th>Ghi chú</th>
+            <th>Thời gian</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="lead in filteredLeads()" :key="lead.lead_id">
+            <tr class="clickable" @click="selectLead(lead)">
+              <td class="font-medium" x-text="lead.ho_ten"></td>
+              <td class="tnum text-surface-300" x-text="fmt.phone(lead.so_dien_thoai)"></td>
+              <td>
+                <span class="status-badge" :style="badgeStyle(lead.trang_thai_noi_bo)">
+                  <span class="status-dot" :style="{ background: statusColor(lead.trang_thai_noi_bo) }"></span>
+                  <span x-text="lead.trang_thai_noi_bo"></span>
+                </span>
+              </td>
+              <td class="text-xs text-surface-400 truncate-1 max-w-xs" x-text="lead.ghi_chu_noi_bo || '—'"></td>
+              <td class="text-xs text-surface-400" x-text="fmt.relative(lead.updated_at || lead.thoi_gian)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Lead Detail Modal (inline) -->
+  <div x-show="selected" x-transition.opacity class="modal-overlay" @click.self="closeDetail()" style="z-index: 60;">
+    <div class="modal modal-lg" x-show="selected" x-transition>
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" x-text="selected ? selected.ho_ten : ''"></div>
+          <div class="text-xs text-surface-400 mt-0.5">
+            <span x-text="selected ? selected.lead_id : ''"></span>
+          </div>
+        </div>
+        <button class="modal-close" @click="closeDetail()">
+          <i data-lucide="x" style="width:18px;height:18px;"></i>
+        </button>
+      </div>
+      <div class="modal-body" x-show="selected">
+        <!-- Quick info -->
+        <div class="grid-3 mb-4">
+          <div>
+            <div class="text-xs text-surface-500 mb-1">Số điện thoại</div>
+            <div class="flex items-center gap-2">
+              <span class="font-medium tnum" x-text="selected ? fmt.phone(selected.so_dien_thoai) : ''"></span>
+              <a
+                :href="selected ? 'tel:' + selected.so_dien_thoai : '#'"
+                class="btn btn-success btn-sm"
+              >
+                <i data-lucide="phone" class="w-3 h-3"></i> Gọi
+              </a>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-surface-500 mb-1">Trạng thái hiện tại</div>
+            <span class="status-badge" :style="selected ? badgeStyle(selected.trang_thai_noi_bo) : ''">
+              <span class="status-dot" :style="{ background: selected ? statusColor(selected.trang_thai_noi_bo) : '#000' }"></span>
+              <span x-text="selected ? selected.trang_thai_noi_bo : ''"></span>
+            </span>
+          </div>
+          <div>
+            <div class="text-xs text-surface-500 mb-1">Thời gian nhận</div>
+            <div class="text-sm" x-text="selected ? fmt.dateTime(selected.thoi_gian) : ''"></div>
+          </div>
+        </div>
+
+        <!-- Update status -->
+        <div class="mb-4">
+          <label class="form-label">Đổi trạng thái</label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="st in statusList" :key="st">
+              <button
+                class="btn btn-sm"
+                :class="selected && selected.trang_thai_noi_bo === st ? 'btn-primary' : 'btn-secondary'"
+                @click="quickUpdateStatus(st)"
+                :disabled="updating"
+              >
+                <span class="status-dot" :style="{ background: statusColor(st), width: '6px', height: '6px', display: 'inline-block', borderRadius: '50%' }"></span>
+                <span x-text="st"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div class="mb-4">
+          <label class="form-label">Ghi chú chăm sóc</label>
+          <textarea
+            class="form-textarea"
+            rows="3"
+            x-model="noteDraft"
+            placeholder="Nhập lịch sử chăm sóc..."
+          ></textarea>
+          <div class="flex justify-end mt-2 gap-2">
+            <button class="btn btn-secondary btn-sm" @click="noteDraft = selected ? selected.ghi_chu_noi_bo : ''">Reset</button>
+            <button class="btn btn-primary btn-sm" @click="saveNote()" :disabled="updating || noteDraft === (selected ? selected.ghi_chu_noi_bo : '')">
+              <i data-lucide="save" class="w-4 h-4"></i>
+              Lưu ghi chú
+            </button>
+          </div>
+        </div>
+
+        <!-- Tracking (admin only) -->
+        <div x-show="selected && selected.tracking" class="mb-4">
+          <label class="form-label">Tracking</label>
+          <code class="block bg-surface-900/80 p-2.5 rounded text-xs break-all text-surface-300" x-text="selected ? selected.tracking : ''"></code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('saleWorkspace', () => ({
+  auth: Alpine.store('auth'),
+  loading: false,
+  viewMode: 'kanban',
+  search: '',
+  leads: [],
+  statusColors: {},
+  statusList: [],
+  selected: null,
+  noteDraft: '',
+  updating: false,
+  lastUpdate: null,
+  poller: null,
+  dragOver: null,
+  dragging: null,
+
+  kanbanColumns: [
+    { key: 'MOI',     label: 'Mới tiếp nhận', color: '#3b82f6' },
+    { key: 'CHAM_SOC', label: 'Đang chăm sóc', color: '#10b981' },
+    { key: 'HEN',     label: 'Hẹn gọi lại',   color: '#f59e0b' },
+    { key: 'HOC',     label: 'Đã học',        color: '#22c55e' },
+    { key: 'THAT_BAI', label: 'Thất bại',      color: '#f43f5e' }
+  ],
+
+  async init() {
+    this._unloadHandler = () => this.destroy();
+    window.addEventListener('crm:route:unload', this._unloadHandler);
+    try {
+      const r = await api.listStatus();
+      this.statusColors = r.data.colors || {};
+      this.statusList = r.data.internal || [];
+    } catch (e) {}
+    await this.refresh();
+    this.startPolling();
+  },
+
+  destroy() {
+    if (this.poller) this.poller.stop();
+    if (this._unloadHandler) window.removeEventListener('crm:route:unload', this._unloadHandler);
+  },
+
+  startPolling() {
+    this.poller = new Poller(() => this.refresh(true), {
+      interval: 2000,
+      onError: () => {}
+    });
+    this.poller.start();
+  },
+
+  async refresh(silent) {
+    if (!silent) this.loading = true;
+    try {
+      const r = await api.listLeads({ limit: 500 });
+      this.leads = r.data.items || [];
+      this.lastUpdate = new Date();
+    } catch (e) {
+      if (!silent) toast.error('Lỗi: ' + e.message);
+    } finally {
+      if (!silent) this.loading = false;
+    }
+  },
+
+  filteredLeads() {
+    let arr = this.leads;
+    if (this.search) {
+      const q = this.search.toLowerCase();
+      arr = arr.filter(l => (l.ho_ten || '').toLowerCase().includes(q) || (l.so_dien_thoai || '').includes(q));
+    }
+    return arr;
+  },
+
+  leadsByCol(colKey) {
+    const arr = this.filteredLeads();
+    const map = {
+      'MOI': ['Nhận contact'],
+      'CHAM_SOC': ['Đang chăm sóc','Thành thạo CQG Demo Đăng ký Coach Vip','Đã được coach với chuyên gia','Đang giao dịch','Đã mở tk','Khai thác kho số','Chờ khóa học tiếp','Đã giới thiệu chuyên gia'],
+      'HEN': ['Hẹn gọi lại'],
+      'HOC': ['HV Mua chỉ báo','HV chuyên sâu','Đã học BMĐTHH','Xác nhận học'],
+      'THAT_BAI': ['Sai số','Không tín hiệu/thuê bao','Không nghe máy','Không quan tâm']
+    };
+    const allowed = map[colKey] || [];
+    return arr.filter(l => allowed.indexOf(l.trang_thai_noi_bo) >= 0);
+  },
+
+  statusColor(s) { return this.statusColors[s] || '#64748b'; },
+  badgeStyle(s) { const c = this.statusColor(s); return `background:${c}20;border-color:${c}40;color:${c};`; },
+
+  selectLead(lead) {
+    this.selected = lead;
+    this.noteDraft = lead.ghi_chu_noi_bo || '';
+  },
+
+  closeDetail() {
+    this.selected = null;
+    this.noteDraft = '';
+  },
+
+  async quickUpdateStatus(status) {
+    if (!this.selected || this.updating) return;
+    this.updating = true;
+    try {
+      const r = await api.updateLeadStatus(this.selected.lead_id, {
+        trang_thai_noi_bo: status
+      });
+      if (r.data) {
+        // Cập nhật trong danh sách local
+        const idx = this.leads.findIndex(l => l.lead_id === r.data.lead_id);
+        if (idx >= 0) {
+          this.leads[idx] = Object.assign({}, this.leads[idx], {
+            trang_thai_noi_bo: r.data.trang_thai_noi_bo,
+            ghi_chu_noi_bo: r.data.ghi_chu_noi_bo,
+            updated_at: r.data.updated_at
+          });
+        }
+        this.selected = Object.assign({}, this.selected, r.data);
+        toast.success('Đã cập nhật: ' + status);
+      }
+    } catch (err) {
+      toast.error('Lỗi: ' + err.message);
+    } finally {
+      this.updating = false;
+    }
+  },
+
+  async saveNote() {
+    if (!this.selected || this.updating) return;
+    if (this.noteDraft === (this.selected.ghi_chu_noi_bo || '')) return;
+    this.updating = true;
+    try {
+      const r = await api.updateLeadStatus(this.selected.lead_id, {
+        ghi_chu_noi_bo: this.noteDraft
+      });
+      if (r.data) {
+        const idx = this.leads.findIndex(l => l.lead_id === r.data.lead_id);
+        if (idx >= 0) {
+          this.leads[idx] = Object.assign({}, this.leads[idx], {
+            ghi_chu_noi_bo: r.data.ghi_chu_noi_bo,
+            updated_at: r.data.updated_at
+          });
+        }
+        this.selected = Object.assign({}, this.selected, r.data);
+        toast.success('Đã lưu ghi chú');
+      }
+    } catch (err) {
+      toast.error('Lỗi: ' + err.message);
+    } finally {
+      this.updating = false;
+    }
+  },
+
+  // Drag & drop
+  onDragStart(e, lead) {
+    this.dragging = lead;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', lead.lead_id);
+    e.target.classList.add('dragging');
+  },
+
+  onDragEnd(e) {
+    e.target.classList.remove('dragging');
+    this.dragging = null;
+    this.dragOver = null;
+  },
+
+  async onDrop(e, colKey) {
+    e.preventDefault();
+    this.dragOver = null;
+    if (!this.dragging) return;
+    const map = {
+      'MOI': 'Nhận contact',
+      'CHAM_SOC': 'Đang chăm sóc',
+      'HEN': 'Hẹn gọi lại',
+      'HOC': 'Đã học BMĐTHH',
+      'THAT_BAI': 'Không nghe máy'
+    };
+    const newStatus = map[colKey];
+    if (!newStatus || this.dragging.trang_thai_noi_bo === newStatus) return;
+    try {
+      const r = await api.updateLeadStatus(this.dragging.lead_id, {
+        trang_thai_noi_bo: newStatus
+      });
+      if (r.data) {
+        const idx = this.leads.findIndex(l => l.lead_id === r.data.lead_id);
+        if (idx >= 0) {
+          this.leads[idx] = Object.assign({}, this.leads[idx], r.data);
+        }
+        toast.success('Đã chuyển sang: ' + newStatus);
+      }
+    } catch (err) {
+      toast.error('Lỗi: ' + err.message);
+    }
+  }
+}));
+</script>

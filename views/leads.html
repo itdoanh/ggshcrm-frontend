@@ -1,0 +1,191 @@
+<!-- views/leads.html - Danh sách Lead chung (cho Admin/Manager/Leader) -->
+
+<div x-data="leadsPage">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1" x-text="title"></h1>
+      <p class="text-sm text-surface-400">Tổng cộng <span x-text="fmt.number(total)"></span> lead</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="search" class="form-input max-w-xs" placeholder="Tìm theo tên, SĐT..." x-model="search" />
+      <select class="form-select max-w-xs" x-model="statusFilter">
+        <option value="">Tất cả trạng thái</option>
+        <template x-for="s in statusList" :key="s">
+          <option :value="s" x-text="s"></option>
+        </template>
+      </select>
+      <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+        <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="data-table-wrap" style="max-height: calc(100vh - 240px);">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Lead ID</th>
+            <th>Họ tên</th>
+            <th>SĐT</th>
+            <th>Trạng thái</th>
+            <th>Phân bổ</th>
+            <th>Manager</th>
+            <th>Leader</th>
+            <th>Sale</th>
+            <th>Thời gian</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="lead in filteredLeads()" :key="lead.lead_id">
+            <tr class="clickable" @click="openDetail(lead)">
+              <td><code class="text-xs text-surface-400" x-text="lead.lead_id"></code></td>
+              <td class="font-medium" x-text="lead.ho_ten"></td>
+              <td class="tnum text-surface-300" x-text="fmt.phone(lead.so_dien_thoai)"></td>
+              <td>
+                <span class="status-badge" :style="badgeStyle(lead.trang_thai_noi_bo)">
+                  <span class="status-dot" :style="{ background: statusColor(lead.trang_thai_noi_bo) }"></span>
+                  <span x-text="lead.trang_thai_noi_bo"></span>
+                </span>
+              </td>
+              <td class="text-xs text-surface-400" x-text="lead.trang_thai_phan_bo || '—'"></td>
+              <td class="text-xs text-surface-300" x-text="userName(lead.manager_id) || '—'"></td>
+              <td class="text-xs text-surface-300" x-text="userName(lead.leader_id) || '—'"></td>
+              <td class="text-xs text-surface-300" x-text="userName(lead.sale_id) || '—'"></td>
+              <td class="text-xs text-surface-400" x-text="fmt.relative(lead.thoi_gian)"></td>
+            </tr>
+          </template>
+          <template x-if="!loading && !filteredLeads().length">
+            <tr><td colspan="9">
+              <div class="empty-state">
+                <i data-lucide="inbox" class="empty-state-icon"></i>
+                <div class="empty-state-title">Không có lead</div>
+              </div>
+            </td></tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('leadsPage', () => ({
+  auth: Alpine.store('auth'),
+  loading: false,
+  leads: [],
+  users: [],
+  statusColors: {},
+  statusList: [],
+  search: '',
+  statusFilter: '',
+  poller: null,
+
+  get title() {
+    const titles = {
+      admin: 'Tất cả Lead',
+      manager: 'Lead của tôi',
+      leader: 'Lead nhóm tôi',
+      sale: 'Danh sách Lead'
+    };
+    return titles[this.auth.user.role] || 'Danh sách Lead';
+  },
+
+  async init() {
+    this._unloadHandler = () => this.destroy();
+    window.addEventListener('crm:route:unload', this._unloadHandler);
+    try {
+      const sr = await api.listStatus();
+      this.statusColors = sr.data.colors || {};
+      this.statusList = sr.data.internal || [];
+    } catch (e) {}
+    try { const ur = await api.listUsers({}); this.users = ur.data || []; } catch (e) {}
+    await this.refresh();
+    this.startPolling();
+  },
+  destroy() {
+    if (this.poller) this.poller.stop();
+    if (this._unloadHandler) window.removeEventListener('crm:route:unload', this._unloadHandler);
+  },
+  startPolling() {
+    this.poller = new Poller(() => this.refresh(true), { interval: 2000, onError: () => {} });
+    this.poller.start();
+  },
+
+  get total() { return this.leads.length; },
+
+  async refresh(silent) {
+    if (!silent) this.loading = true;
+    try {
+      const r = await api.listLeads({ limit: 500 });
+      this.leads = r.data.items || [];
+    } catch (e) {
+      if (!silent) toast.error(e.message);
+    } finally {
+      if (!silent) this.loading = false;
+    }
+  },
+
+  filteredLeads() {
+    let arr = this.leads;
+    if (this.statusFilter) arr = arr.filter(l => l.trang_thai_noi_bo === this.statusFilter);
+    if (this.search) {
+      const q = this.search.toLowerCase();
+      arr = arr.filter(l => (l.ho_ten || '').toLowerCase().includes(q) || (l.so_dien_thoai || '').includes(q));
+    }
+    return arr;
+  },
+
+  statusColor(s) { return this.statusColors[s] || '#64748b'; },
+  badgeStyle(s) { const c = this.statusColor(s); return `background:${c}20;border-color:${c}40;color:${c};`; },
+  userName(id) { if (!id) return null; const u = this.users.find(x => x.user_id === id); return u ? u.full_name : null; },
+
+  openDetail(lead) {
+    openModal({
+      title: lead.ho_ten,
+      size: 'lg',
+      html: `
+        <div class="space-y-4">
+          <div class="grid-3">
+            <div>
+              <div class="text-xs text-surface-500 mb-1">SĐT</div>
+              <div class="flex items-center gap-2">
+                <span class="font-medium tnum">${fmt.phone(lead.so_dien_thoai)}</span>
+                <a href="tel:${lead.so_dien_thoai}" class="btn btn-success btn-sm"><i data-lucide="phone" class="w-3 h-3"></i> Gọi</a>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-surface-500 mb-1">Trạng thái</div>
+              <span class="status-badge" style="background:${this.statusColor(lead.trang_thai_noi_bo)}20;color:${this.statusColor(lead.trang_thai_noi_bo)};">
+                ${lead.trang_thai_noi_bo}
+              </span>
+            </div>
+            <div>
+              <div class="text-xs text-surface-500 mb-1">Thời gian nhận</div>
+              <div class="text-sm">${fmt.dateTime(lead.thoi_gian)}</div>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-surface-500 mb-1">Lead ID</div>
+            <code class="text-xs">${lead.lead_id}</code>
+          </div>
+          <div>
+            <div class="text-xs text-surface-500 mb-1">Phân bổ</div>
+            <div class="grid-2 gap-2 text-sm">
+              <div>Manager: <span class="text-surface-300">${this.userName(lead.manager_id) || '—'}</span></div>
+              <div>Leader: <span class="text-surface-300">${this.userName(lead.leader_id) || '—'}</span></div>
+              <div>Sale: <span class="text-surface-300">${this.userName(lead.sale_id) || '—'}</span></div>
+              <div>Trạng thái: <span class="text-surface-300">${lead.trang_thai_phan_bo || '—'}</span></div>
+            </div>
+          </div>
+          ${lead.ghi_chu_noi_bo ? `<div>
+            <div class="text-xs text-surface-500 mb-1">Ghi chú</div>
+            <div class="text-sm p-3 bg-surface-900/50 rounded">${fmt.escapeHtml(lead.ghi_chu_noi_bo)}</div>
+          </div>` : ''}
+        </div>
+      `
+    });
+    setTimeout(() => window.ic && window.ic.render(), 50);
+  }
+}));
+</script>

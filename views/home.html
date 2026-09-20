@@ -1,0 +1,22 @@
+<!-- views/home.html - Trang chủ mặc định, redirect theo role -->
+
+<div x-data="homeView" class="flex items-center justify-center" style="min-height: 60vh;">
+  <div class="text-center">
+    <div class="inline-block w-16 h-16 mb-4 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-brand-500/30">
+      C
+    </div>
+    <div class="text-lg text-surface-300 mb-4">Đang chuyển hướng...</div>
+    <div class="inline-block w-8 h-8 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin"></div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('homeView', () => ({
+  auth: Alpine.store('auth'),
+  router: Alpine.store('router'),
+  init() {
+    const home = this.auth.home ? this.auth.home() : 'admin';
+    setTimeout(() => this.router.navigate(home), 200);
+  }
+}));
+</script>

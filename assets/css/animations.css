@@ -1,0 +1,201 @@
+/* =============================================================
+ * animations.css - Keyframes + transitions
+ * ============================================================= */
+
+/* Splash screen */
+.splash-screen {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #1e1b4b 0%, #020617 70%);
+  z-index: 9999;
+}
+
+.splash-content {
+  display: flex; flex-direction: column; align-items: center; gap: 24px;
+}
+
+.splash-logo {
+  filter: drop-shadow(0 0 40px rgba(99, 102, 241, 0.6));
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.splash-text {
+  font-size: 32px; font-weight: 800;
+  background: linear-gradient(135deg, #a5b4fc, #c4b5fd, #f0abfc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+
+.splash-spinner {
+  width: 32px; height: 32px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #818cf8;
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 40px rgba(99, 102, 241, 0.6)); }
+  50% { filter: drop-shadow(0 0 60px rgba(139, 92, 246, 0.8)); }
+}
+
+/* Fade in */
+.fade-in {
+  animation: fadeIn 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Slide up */
+.slide-up {
+  animation: slideUp 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scale in */
+.scale-in {
+  animation: scaleIn 250ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Slide from right */
+.slide-right {
+  animation: slideRight 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Pulse for notifications */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  animation: pulseDot 1.5s ease-out infinite;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Live indicator blink */
+.live-blink {
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Stagger animation helper */
+.stagger > * {
+  animation: slideUp 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 50ms; }
+.stagger > *:nth-child(2) { animation-delay: 100ms; }
+.stagger > *:nth-child(3) { animation-delay: 150ms; }
+.stagger > *:nth-child(4) { animation-delay: 200ms; }
+.stagger > *:nth-child(5) { animation-delay: 250ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+.stagger > *:nth-child(7) { animation-delay: 350ms; }
+.stagger > *:nth-child(8) { animation-delay: 400ms; }
+
+/* Hover lift */
+.hover-lift {
+  transition: transform var(--t-base), box-shadow var(--t-base);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Toast animation */
+.toast-enter {
+  animation: toastIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.toast-leave {
+  animation: toastOut 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.95); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes toastOut {
+  to { opacity: 0; transform: translateX(40px) scale(0.95); }
+}
+
+/* Modal animation */
+.modal-enter {
+  animation: modalIn 250ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.modal-overlay-enter {
+  animation: overlayIn 200ms ease-out both;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Row appear (for new leads) */
+.row-flash {
+  animation: rowFlash 1.5s ease-out;
+}
+
+@keyframes rowFlash {
+  0% { background: rgba(99, 102, 241, 0.3); }
+  100% { background: transparent; }
+}
+
+/* Drag (kanban) */
+.dragging {
+  opacity: 0.5;
+  cursor: grabbing !important;
+}
+
+.drag-over {
+  background: rgba(99, 102, 241, 0.1);
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

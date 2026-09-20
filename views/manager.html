@@ -1,0 +1,237 @@
+<!-- views/manager.html - Manager Dashboard -->
+
+<div x-data="managerDashboard">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white mb-1">Dashboard Quản lý</h1>
+      <p class="text-sm text-surface-400">Quản lý lead và phân bổ cho các Leader</p>
+    </div>
+    <button class="btn btn-secondary" @click="refresh()" :disabled="loading">
+      <i data-lucide="refresh-cw" :class="loading ? 'animate-spin' : ''"></i>
+      Làm mới
+    </button>
+  </div>
+
+  <div class="grid-4 stagger mb-6">
+    <div class="metric-card hover-lift" style="--c1:#6366f1;--c2:#8b5cf6;">
+      <div class="metric-icon"><i data-lucide="inbox"></i></div>
+      <div class="metric-label">Lead của tôi</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.total)"></div>
+    </div>
+    <div class="metric-card hover-lift" style="--c1:#10b981;--c2:#14b8a6;">
+      <div class="metric-icon" style="background:rgba(16,185,129,0.15);color:#10b981;">
+        <i data-lucide="git-branch"></i>
+      </div>
+      <div class="metric-label">Đã phân Leader</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.assigned)"></div>
+    </div>
+    <div class="metric-card hover-lift" style="--c1:#f59e0b;--c2:#f97316;">
+      <div class="metric-icon" style="background:rgba(245,158,11,0.15);color:#f59e0b;">
+        <i data-lucide="clock"></i>
+      </div>
+      <div class="metric-label">Chờ phân</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.pending)"></div>
+    </div>
+    <div class="metric-card hover-lift" style="--c1:#22c55e;--c2:#16a34a;">
+      <div class="metric-icon" style="background:rgba(34,197,94,0.15);color:#22c55e;">
+        <i data-lucide="graduation-cap"></i>
+      </div>
+      <div class="metric-label">Đã chốt</div>
+      <div class="metric-value tnum" x-text="fmt.number(metrics.converted)"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Danh sách Lead</div>
+        <div class="card-subtitle">Click vào dòng để gán Leader</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="search" class="form-input max-w-xs" placeholder="Tìm kiếm..." x-model="search" />
+      </div>
+    </div>
+
+    <div class="data-table-wrap" style="max-height: 600px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Lead ID</th>
+            <th>Họ tên</th>
+            <th>SĐT</th>
+            <th>Trạng thái</th>
+            <th>Leader</th>
+            <th>Sale</th>
+            <th>Thời gian</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="lead in filteredLeads()" :key="lead.lead_id">
+            <tr class="clickable" @click="openAssign(lead)">
+              <td><code class="text-xs text-surface-400" x-text="lead.lead_id"></code></td>
+              <td class="font-medium" x-text="lead.ho_ten"></td>
+              <td class="tnum text-surface-300" x-text="fmt.phone(lead.so_dien_thoai)"></td>
+              <td>
+                <span class="status-badge" :style="badgeStyle(lead.trang_thai_noi_bo)">
+                  <span class="status-dot" :style="{ background: statusColor(lead.trang_thai_noi_bo) }"></span>
+                  <span x-text="lead.trang_thai_noi_bo"></span>
+                </span>
+              </td>
+              <td class="text-xs">
+                <span x-show="lead.leader_id" x-text="userName(lead.leader_id)" class="text-surface-300"></span>
+                <span x-show="!lead.leader_id" class="badge badge-amber">Chưa gán</span>
+              </td>
+              <td class="text-xs text-surface-400" x-text="userName(lead.sale_id) || '—'"></td>
+              <td class="text-xs text-surface-400" x-text="fmt.relative(lead.thoi_gian)"></td>
+              <td>
+                <button class="btn btn-ghost btn-sm" @click.stop="openAssign(lead)">
+                  <i data-lucide="user-plus" class="w-4 h-4"></i>
+                </button>
+              </td>
+            </tr>
+          </template>
+          <template x-if="!loading && !filteredLeads().length">
+            <tr><td colspan="8">
+              <div class="empty-state">
+                <i data-lucide="inbox" class="empty-state-icon"></i>
+                <div class="empty-state-title">Chưa có lead</div>
+              </div>
+            </td></tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+window.registerCrmComponent && window.registerCrmComponent('managerDashboard', () => ({
+  auth: Alpine.store('auth'),
+  router: Alpine.store('router'),
+  loading: false,
+  metrics: { total: 0, assigned: 0, pending: 0, converted: 0 },
+  leads: [],
+  users: [],
+  statusColors: {},
+  search: '',
+  poller: null,
+
+  async init() {
+    this._unloadHandler = () => this.destroy();
+    window.addEventListener('crm:route:unload', this._unloadHandler);
+    await this.loadStatus();
+    await this.loadUsers();
+    await this.refresh();
+    this.startPolling();
+  },
+
+  destroy() {
+    if (this.poller) this.poller.stop();
+    if (this._unloadHandler) window.removeEventListener('crm:route:unload', this._unloadHandler);
+  },
+
+  startPolling() {
+    this.poller = new Poller(() => this.refresh(true), { interval: 2000, onError: () => {} });
+    this.poller.start();
+  },
+
+  async loadStatus() {
+    try { const r = await api.listStatus(); this.statusColors = r.data.colors || {}; } catch (e) {}
+  },
+  async loadUsers() {
+    try { const r = await api.listUsers({}); this.users = r.data || []; } catch (e) {}
+  },
+  async refresh(silent) {
+    if (!silent) this.loading = true;
+    try {
+      const [overview, leadsRes] = await Promise.all([
+        api.statsOverview(),
+        api.listLeads({ limit: 200 })
+      ]);
+      this.metrics = {
+        total: overview.data.total,
+        assigned: overview.data.total - overview.data.unassigned,
+        pending: overview.data.unassigned,
+        converted: overview.data.converted
+      };
+      this.leads = leadsRes.data.items || [];
+    } catch (e) {
+      if (!silent) toast.error('Lỗi: ' + e.message);
+    } finally {
+      if (!silent) this.loading = false;
+    }
+  },
+
+  filteredLeads() {
+    let arr = this.leads;
+    if (this.search) {
+      const q = this.search.toLowerCase();
+      arr = arr.filter(l => (l.ho_ten || '').toLowerCase().includes(q) || (l.so_dien_thoai || '').includes(q));
+    }
+    return arr;
+  },
+
+  statusColor(s) { return this.statusColors[s] || '#64748b'; },
+  badgeStyle(s) {
+    const c = this.statusColor(s);
+    return `background:${c}20;border-color:${c}40;color:${c};`;
+  },
+  userName(id) {
+    if (!id) return null;
+    const u = this.users.find(x => x.user_id === id);
+    return u ? u.full_name : id;
+  },
+  openAssign(lead) {
+    const self = this;
+    const leaders = this.users.filter(u => u.role === 'leader');
+    openModal({
+      title: 'Gán Leader cho Lead',
+      size: 'md',
+      html: `
+        <div class="space-y-4">
+          <div class="card" style="background:rgba(15,23,42,0.5);">
+            <div class="text-sm text-surface-400">Lead</div>
+            <div class="text-base font-semibold">${fmt.escapeHtml(lead.ho_ten)}</div>
+            <div class="text-xs text-surface-500">${fmt.escapeHtml(lead.lead_id)} - ${fmt.phone(lead.so_dien_thoai)}</div>
+          </div>
+          <div>
+            <label class="form-label">Chọn Leader</label>
+            <select id="leaderSelect" class="form-select">
+              <option value="">-- Chưa gán --</option>
+              ${leaders.map(l => `<option value="${l.user_id}" ${lead.leader_id === l.user_id ? 'selected' : ''}>${fmt.escapeHtml(l.full_name)} (@${fmt.escapeHtml(l.username)})</option>`).join('')}
+            </select>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button class="btn btn-secondary" onclick="closeLastModal()">Hủy</button>
+            <button class="btn btn-primary" id="assignBtn">Lưu</button>
+          </div>
+        </div>
+      `
+    });
+    setTimeout(() => {
+      const btn = document.getElementById('assignBtn');
+      if (!btn) return;
+      btn.onclick = async () => {
+        const leaderId = document.getElementById('leaderSelect').value;
+        try {
+          await api.assignLead(lead.lead_id, { leader_id: leaderId });
+          toast.success(leaderId ? 'Đã gán Leader' : 'Đã bỏ gán');
+          closeLastModal();
+          self.refresh();
+        } catch (err) {
+          toast.error(err.message);
+        }
+      };
+    }, 100);
+  }
+}));
+
+function closeLastModal() {
+  const layer = document.querySelector('[x-data="modalLayer"]');
+  if (layer && Alpine) {
+    const data = Alpine.$data(layer);
+    if (data && data.stack && data.stack.length) data.close(data.stack[data.stack.length-1].id);
+  }
+}
+</script>
