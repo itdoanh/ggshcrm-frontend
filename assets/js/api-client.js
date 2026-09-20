@@ -6,7 +6,7 @@
 
   const RETRY_LIMIT = 2;
   const RETRY_DELAY = 800;
-  const TIMEOUT_MS = 30000;
+  const TIMEOUT_MS = 60000;
 
   function buildUrl(action, params) {
     const base = (window.APP_CONFIG.API_BASE || '').replace(/\/+$/, '');
