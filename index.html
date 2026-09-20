@@ -78,7 +78,7 @@
   </div>
 
   <!-- App root -->
-  <div x-show="ready" x-cloak>
+  <div x-show="ready" id="app-root-debug" style="border: 3px solid lime; min-height: 100vh;">
 
     <!-- LOGIN VIEW -->
     <template x-if="!auth.token">
@@ -186,6 +186,8 @@
               console.log('DEBUG 3: el._x_dataStack:', el._x_dataStack);
               if (el._x_dataStack && el._x_dataStack[0]) {
                 console.log('DEBUG 3: data keys:', Object.keys(el._x_dataStack[0]));
+                console.log('DEBUG 3: ready value:', el._x_dataStack[0].ready);
+                console.log('DEBUG 3: auth.token:', el._x_dataStack[0].auth ? el._x_dataStack[0].auth.token : 'auth undefined');
               }
             }
             // Check splash visibility
@@ -193,6 +195,15 @@
             console.log('DEBUG 3: splash display:', splash ? getComputedStyle(splash).display : 'not found');
             var appRoot = document.querySelector('[x-show="ready"]');
             console.log('DEBUG 3: app root display:', appRoot ? getComputedStyle(appRoot).display : 'not found');
+            // Check login template
+            var loginTemplate = document.querySelector('template[x-if]');
+            console.log('DEBUG 3: login template found:', !!loginTemplate);
+            // Check if login div was rendered (by x-if)
+            var loginDiv = document.querySelector('[x-data="loginView"]');
+            console.log('DEBUG 3: loginView div found:', !!loginDiv);
+            if (loginDiv) {
+              console.log('DEBUG 3: loginView display:', getComputedStyle(loginDiv).display);
+            }
           }
         }
         if (checks >= 5) {
