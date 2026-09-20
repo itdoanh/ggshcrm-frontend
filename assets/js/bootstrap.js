@@ -430,6 +430,9 @@
         // Toast layer is created dynamically by window.toast.show()
       }
     }));
+  } catch (err) {
+    console.error('[Bootstrap] alpine:init error:', err);
+  }
   });
 
   // Helpers global
