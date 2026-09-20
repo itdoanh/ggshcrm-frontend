@@ -131,9 +131,20 @@
     </template>
   </div>
 
-  <!-- ==================== LIBS (LOCAL) ==================== -->
-  <script src="assets/js/alpine.min.js"></script>
+  <!-- ==================== APP ==================== -->
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/formatters.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/toast.js"></script>
+  <script src="assets/js/api-client.js"></script>
+  <script src="assets/js/auth-store.js"></script>
+  <script src="assets/js/router.js"></script>
+  <script src="assets/js/polling.js"></script>
+  <script src="assets/js/bootstrap.js"></script>
+
+  <!-- ==================== LIBS (LOCAL - must load AFTER app scripts) ==================== -->
   <script src="assets/js/lucide.min.js"></script>
+  <script src="assets/js/alpine.min.js"></script>
 
   <script>
     window.loadChartJs = () => {
@@ -148,30 +159,8 @@
     };
   </script>
 
-  <!-- ==================== APP ==================== -->
-  <script src="assets/js/config.js"></script>
-  <script src="assets/js/formatters.js"></script>
-  <script src="assets/js/icons.js"></script>
-  <script src="assets/js/toast.js"></script>
-  <script src="assets/js/api-client.js"></script>
-  <script src="assets/js/auth-store.js"></script>
-  <script src="assets/js/router.js"></script>
-  <script src="assets/js/polling.js"></script>
-  <script src="assets/js/bootstrap.js"></script>
-
   <script>
-    (function() {
-      var checks = 0;
-      var interval = setInterval(function() {
-        checks++;
-        console.log('Check #' + checks + ' Alpine:', typeof Alpine);
-        if (typeof Alpine !== 'undefined') {
-          clearInterval(interval);
-          console.log('Alpine version:', Alpine.version);
-        }
-        if (checks >= 30) clearInterval(interval);
-      }, 500);
-    })();
+    console.log('Alpine loaded:', typeof Alpine !== 'undefined' ? 'yes v' + Alpine.version : 'NO');
   </script>
 </body>
 </html>
