@@ -1,5 +1,6 @@
 /**
  * bootstrap.js - Khởi tạo Alpine components cho app.
+ * VERSION v1.1.3 - Force cache bust
  */
 (function () {
   'use strict';
