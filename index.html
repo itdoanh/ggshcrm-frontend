@@ -8,17 +8,9 @@
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico" />
   <title>CRM Apex - Hệ thống phân cấp</title>
 
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="assets/css/inter.css" />
 
-  <!-- Inter Vietnamese subset -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-400.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-500.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-600.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/vietnamese-700.css" />
-
-  <!-- Tailwind CSS v4 Play CDN -->
+  <!-- Tailwind CSS v4 Play CDN (required for @theme directives) -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1"></script>
 
   <style type="text/tailwindcss">
@@ -139,16 +131,16 @@
     </template>
   </div>
 
-  <!-- ==================== LIBS ==================== -->
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.1/dist/cdn.min.js"></script>
-  <script src="https://unpkg.com/lucide@1.39.0"></script>
+  <!-- ==================== LIBS (LOCAL) ==================== -->
+  <script src="assets/js/alpine.min.js"></script>
+  <script src="assets/js/lucide.min.js"></script>
 
   <script>
     window.loadChartJs = () => {
       if (window.Chart) return Promise.resolve(window.Chart);
       return new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js';
+        s.src = 'assets/js/chart.umd.min.js';
         s.onload = () => resolve(window.Chart);
         s.onerror = reject;
         document.head.appendChild(s);
@@ -168,19 +160,18 @@
   <script src="assets/js/bootstrap.js"></script>
 
   <script>
-    console.log('=== DEBUG ===');
-    console.log('Alpine:', typeof Alpine);
-    console.log('window.APP_CONFIG:', window.APP_CONFIG);
-    console.log('window.APP_ROLES:', window.APP_ROLES);
-    console.log('window.router:', typeof window.router);
-    console.log('window.ic:', typeof window.ic);
-    console.log('document.readyState:', document.readyState);
-    
-    if (typeof Alpine === 'undefined') {
-      console.error('Alpine.js NOT loaded!');
-    } else {
-      console.log('Alpine version:', Alpine.version || 'unknown');
-    }
+    (function() {
+      var checks = 0;
+      var interval = setInterval(function() {
+        checks++;
+        console.log('Check #' + checks + ' Alpine:', typeof Alpine);
+        if (typeof Alpine !== 'undefined') {
+          clearInterval(interval);
+          console.log('Alpine version:', Alpine.version);
+        }
+        if (checks >= 30) clearInterval(interval);
+      }, 500);
+    })();
   </script>
 </body>
 </html>
