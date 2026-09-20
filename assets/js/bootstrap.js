@@ -125,6 +125,16 @@
       apiBase: window.APP_CONFIG.API_BASE,
 
       async init() {
+        const root = this.$root;
+        if (root && root.children.length === 0) {
+          try {
+            const html = await fetchView('login');
+            root.innerHTML = html;
+            if (window.ic) window.ic.render(root);
+          } catch (e) {
+            root.innerHTML = '<div class="empty-state">Lỗi tải login: ' + (e.message || e) + '</div>';
+          }
+        }
         setTimeout(() => window.ic && window.ic.render(), 50);
       },
 
