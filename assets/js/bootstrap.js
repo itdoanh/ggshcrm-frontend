@@ -213,9 +213,15 @@
           target.innerHTML = parsed.html;
 
           // Đăng ký component (eval script) - phải chạy TRƯỚC Alpine.initTree
-          parsed.scripts.forEach(code => {
-            try { (0, eval)(code); }
-            catch (e) { console.error('View script error:', e); }
+          parsed.scripts.forEach((code, i) => {
+            try {
+              const result = (0, eval)(code);
+              if (window.Alpine && Alpine._crmRegistered) {
+                console.log('[loadRoute]', name, 'script', i, 'eval OK, registered:', Alpine._crmRegistered.size);
+              }
+            } catch (e) {
+              console.error('[loadRoute]', name, 'script', i, 'eval FAILED:', e);
+            }
           });
 
           // Đảm bảo các fallback scope đã register TRƯỚC khi Alpine.initTree
@@ -493,22 +499,27 @@
       // dashboard
       metrics: { total: 0, today: 0, in_progress: 0, unassigned: 0, converted: 0, failed: 0, conversion_rate: 0, failure_rate: 0 },
       // leads
-      leads: [], filteredLeads: () => [], search: '', filter: 'all',
+      leads: [], filteredLeads: () => [], pagedLeads: [], search: '', filter: 'all',
       statusFilter: '', statusList: [], sortField: '', sortDir: 'asc',
+      page: 1, pageSize: 20,
       // users
       users: [], filteredUsers: () => [], roles: [],
-      canCreate: false, currentUser: null, editingUser: null, userForm: {},
+      canCreate: false, currentUser: null, editingUser: null, userForm: {}, showForm: false,
       // mapping
       mappings: [], newInternal: '', newAds: '',
       // settings
       whitelist: [], newDomain: '',
+      distributionStatus: { autoDistribute: true, levels: {} },
+      togglingMode: false, filterLevel: 'pending',
       // profile
       title: '', total: 0,
       currentPassword: '', newPassword: '', confirmPassword: '',
+      // lead-assign
+      handlers: [], pendingLeads: [], assignedLeads: [],
       // role helpers
       roleLabel: () => '', roleBadgeClass: () => '',
       // generic helpers
-      refresh: () => {}, openCreate: () => {}, setFilter: () => {},
+      refresh: () => {}, openCreate: () => {}, setFilter: () => {}, toggleMode: () => {}, save: () => {}, cancel: () => {},
       fmt: window.fmt || { number: (n) => n || 0, escapeHtml: (s) => s || '' },
       auth: window.Alpine && Alpine.store ? Alpine.store('auth') : {}
     };
