@@ -218,17 +218,14 @@
             catch (e) { console.error('View script error:', e); }
           });
 
+          // Đảm bảo các fallback scope đã register TRƯỚC khi Alpine.initTree
+          try { (window.ensureCrmFallbackScopes || function(){})(); }
+          catch (e) {}
+
           // Alpine.initTree để bind các x-data mới
           if (window.Alpine && Alpine.initTree) {
             try { Alpine.initTree(target); }
             catch (e) { console.error('Alpine.initTree error:', e); }
-          }
-
-          // Defensive: ensure fallback scopes đã register trước khi Alpine eval
-          const reg = window.Alpine && window.Alpine._crmRegistered;
-          if (reg) {
-            try { (window.ensureCrmFallbackScopes || function(){})(); }
-            catch (e) {}
           }
 
           // Render Lucide icons
@@ -487,6 +484,36 @@
     'usersPage', 'leadsPage', 'mappingPage', 'distributionSettings',
     'leadAssign', 'sheetHub', 'homeView', 'profilePage'
   ];
+
+  // Tập field mặc định đủ dùng cho mọi view (tránh crash nếu component chưa register)
+  function defaultViewState() {
+    return {
+      // common
+      loading: false, error: '', items: [], saving: false, refreshing: false,
+      // dashboard
+      metrics: { total: 0, today: 0, in_progress: 0, unassigned: 0, converted: 0, failed: 0, conversion_rate: 0, failure_rate: 0 },
+      // leads
+      leads: [], filteredLeads: () => [], search: '', filter: 'all',
+      statusFilter: '', statusList: [], sortField: '', sortDir: 'asc',
+      // users
+      users: [], filteredUsers: () => [], roles: [],
+      canCreate: false, currentUser: null, editingUser: null, userForm: {},
+      // mapping
+      mappings: [], newInternal: '', newAds: '',
+      // settings
+      whitelist: [], newDomain: '',
+      // profile
+      title: '', total: 0,
+      currentPassword: '', newPassword: '', confirmPassword: '',
+      // role helpers
+      roleLabel: () => '', roleBadgeClass: () => '',
+      // generic helpers
+      refresh: () => {}, openCreate: () => {}, setFilter: () => {},
+      fmt: window.fmt || { number: (n) => n || 0, escapeHtml: (s) => s || '' },
+      auth: window.Alpine && Alpine.store ? Alpine.store('auth') : {}
+    };
+  }
+
   function ensureFallbackScope(name) {
     if (typeof Alpine === 'undefined' || !Alpine.data) {
       setTimeout(() => ensureFallbackScope(name), 50);
@@ -495,7 +522,12 @@
     const reg = Alpine._crmRegistered = Alpine._crmRegistered || new Set();
     if (reg.has(name)) return;
     reg.add(name);
-    Alpine.data(name, () => ({ loading: false, error: '', items: [] }));
+    Alpine.data(name, () => defaultViewState());
   }
   VIEW_SCOPES.forEach(ensureFallbackScope);
+
+  // Expose globally để bootstrap.js có thể re-ensure sau khi render view mới
+  window.ensureCrmFallbackScopes = function () {
+    VIEW_SCOPES.forEach(ensureFallbackScope);
+  };
 })();
