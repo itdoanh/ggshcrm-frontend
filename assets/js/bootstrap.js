@@ -103,10 +103,9 @@
           async init() {
             console.log('[App] init called');
             this.auth.init();
-            if (this.auth.token) {
-              try { await api.me(); }
-              catch (e) { this.auth.logout(); }
-            }
+            // BỎ QUA api.me() verify khi init để tránh timeout/CORS khi Apps Script cold start.
+            // Token JWT đã có đủ thông tin user, không cần verify lại ngay khi load trang.
+            // Verify sẽ tự động fail qua các API call khác nếu token hết hạn.
             this.ready = true;
             document.body.classList.add('app-ready');
             console.log('[App] ready = true');
