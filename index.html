@@ -58,7 +58,7 @@
 <body class="font-sans bg-surface-950 text-surface-100 antialiased min-h-screen">
 
   <!-- Splash loading -->
-  <div x-show="!ready" x-transition.opacity.duration.300ms class="splash-screen">
+  <div x-show="!ready" x-transition.opacity.duration.300ms class="splash-screen" id="debug-splash" style="border: 3px solid red; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0f172a; z-index: 9999;">
     <div class="splash-content">
       <div class="splash-logo">
         <svg width="64" height="64" viewBox="0 0 100 100" fill="none">
@@ -144,7 +144,14 @@
 
   <!-- ==================== LIBS (LOCAL - must load AFTER app scripts) ==================== -->
   <script src="assets/js/lucide.min.js"></script>
+  <script>
+    console.log('BEFORE Alpine: window.Alpine:', typeof Alpine);
+  </script>
   <script src="assets/js/alpine.min.js"></script>
+  <script>
+    console.log('AFTER Alpine: window.Alpine:', typeof Alpine, Alpine ? Alpine.version : 'N/A');
+    console.log('AFTER Alpine: window.app (Alpine.data):', typeof window.app);
+  </script>
 
   <script>
     window.loadChartJs = () => {
@@ -160,17 +167,40 @@
   </script>
 
   <script>
-    console.log('Alpine loaded:', typeof Alpine !== 'undefined' ? 'yes v' + Alpine.version : 'NO');
-
-    document.addEventListener('alpine:initialized', () => {
-      console.log('alpine:initialized event fired');
-      setTimeout(() => {
-        const root = document.querySelector('[x-data="app"]');
-        console.log('app root data:', root && root._x_dataStack ? Object.keys(root._x_dataStack[0]) : 'NO ROOT');
-        console.log('ready:', root && root._x_dataStack && root._x_dataStack[0].ready);
-        console.log('auth.token:', root && root._x_dataStack && root._x_dataStack[0].auth && root._x_dataStack[0].auth.token);
-      }, 1000);
-    });
+    // Debug: check Alpine state
+    (function() {
+      var checks = 0;
+      var interval = setInterval(function() {
+        checks++;
+        if (checks === 1) {
+          console.log('DEBUG 1: Alpine type:', typeof Alpine);
+        }
+        if (checks === 3) {
+          console.log('DEBUG 3: After 1s - Alpine:', typeof Alpine);
+          if (typeof Alpine !== 'undefined') {
+            console.log('DEBUG 3: Alpine.version:', Alpine.version);
+            console.log('DEBUG 3: window.app:', typeof window.app);
+            var el = document.querySelector('[x-data="app"]');
+            console.log('DEBUG 3: app element found:', !!el);
+            if (el) {
+              console.log('DEBUG 3: el._x_dataStack:', el._x_dataStack);
+              if (el._x_dataStack && el._x_dataStack[0]) {
+                console.log('DEBUG 3: data keys:', Object.keys(el._x_dataStack[0]));
+              }
+            }
+            // Check splash visibility
+            var splash = document.querySelector('.splash-screen');
+            console.log('DEBUG 3: splash display:', splash ? getComputedStyle(splash).display : 'not found');
+            var appRoot = document.querySelector('[x-show="ready"]');
+            console.log('DEBUG 3: app root display:', appRoot ? getComputedStyle(appRoot).display : 'not found');
+          }
+        }
+        if (checks >= 5) {
+          clearInterval(interval);
+          console.log('DEBUG END: No Alpine issues detected after 2.5s');
+        }
+      }, 500);
+    })();
   </script>
 </body>
 </html>

@@ -92,23 +92,28 @@
     }
   }
 
-  document.addEventListener('alpine:init', () => {
-    // ===== APP ROOT =====
-    Alpine.data('app', () => ({
-      ready: false,
-      auth: Alpine.store('auth'),
+  try {
+    document.addEventListener('alpine:init', () => {
+      console.log('[Bootstrap] alpine:init fired');
+      try {
+        // ===== APP ROOT =====
+        Alpine.data('app', () => ({
+          ready: false,
+          auth: Alpine.store('auth'),
 
-      async init() {
-        this.auth.init();
-        if (this.auth.token) {
-          try { await api.me(); }
-          catch (e) { this.auth.logout(); }
-        }
-        this.ready = true;
-        document.body.classList.add('app-ready');
-        setTimeout(() => window.ic && window.ic.render(), 100);
-      }
-    }));
+          async init() {
+            console.log('[App] init called');
+            this.auth.init();
+            if (this.auth.token) {
+              try { await api.me(); }
+              catch (e) { this.auth.logout(); }
+            }
+            this.ready = true;
+            document.body.classList.add('app-ready');
+            console.log('[App] ready = true');
+            setTimeout(() => window.ic && window.ic.render(), 100);
+          }
+        }));
 
     // ===== LOGIN VIEW =====
     Alpine.data('loginView', () => ({
