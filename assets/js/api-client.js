@@ -34,11 +34,10 @@
   async function request(action, body, opts) {
     opts = opts || {};
     const method = opts.method || (body ? 'POST' : 'GET');
-    const url = buildUrl(action, opts.query || {});
     const token = getAuthToken();
+    const url = buildUrl(action, Object.assign({}, opts.query || {}, token && method === 'GET' ? { token } : {}));
 
     const headers = { 'Content-Type': 'text/plain;charset=utf-8' };
-    if (token) headers['Authorization'] = 'Bearer ' + token;
 
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -50,10 +49,14 @@
     let lastErr;
     while (attempt <= RETRY_LIMIT) {
       try {
+        // Body gửi đi: gộp token vào để backend auth (tránh Authorization header gây preflight)
+        const payload = body ? Object.assign({}, body) : {};
+        if (token && method !== 'GET') payload.token = token;
+
         const res = await fetch(url, {
           method,
           headers,
-          body: body ? JSON.stringify(body) : undefined,
+          body: (method === 'GET') ? undefined : JSON.stringify(payload),
           signal: ctrl.signal
         });
         clearTimeout(t);
