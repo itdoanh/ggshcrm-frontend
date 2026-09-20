@@ -37,7 +37,7 @@
     const url = buildUrl(action, opts.query || {});
     const token = getAuthToken();
 
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'text/plain;charset=utf-8' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
     const ctrl = new AbortController();
