@@ -471,4 +471,23 @@
       console.warn('Component register failed:', name, e);
     }
   };
+
+  // Fallback Alpine.data cho các view scope có tham chiếu `loading` mà chưa khai báo component.
+  // Tránh lỗi Alpine Expression Error khi view render trước khi component được register.
+  const VIEW_SCOPES = [
+    'adminDashboard', 'managerDashboard', 'leaderDashboard', 'saleWorkspace',
+    'usersPage', 'leadsPage', 'mappingPage', 'distributionSettings',
+    'leadAssign', 'sheetHub', 'homeView', 'profilePage'
+  ];
+  function ensureFallbackScope(name) {
+    if (typeof Alpine === 'undefined' || !Alpine.data) {
+      setTimeout(() => ensureFallbackScope(name), 50);
+      return;
+    }
+    const reg = Alpine._crmRegistered = Alpine._crmRegistered || new Set();
+    if (reg.has(name)) return;
+    reg.add(name);
+    Alpine.data(name, () => ({ loading: false, error: '', items: [] }));
+  }
+  VIEW_SCOPES.forEach(ensureFallbackScope);
 })();
