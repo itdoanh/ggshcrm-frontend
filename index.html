@@ -166,5 +166,21 @@
   <script src="assets/js/router.js"></script>
   <script src="assets/js/polling.js"></script>
   <script src="assets/js/bootstrap.js"></script>
+
+  <script>
+    console.log('=== DEBUG ===');
+    console.log('Alpine:', typeof Alpine);
+    console.log('window.APP_CONFIG:', window.APP_CONFIG);
+    console.log('window.APP_ROLES:', window.APP_ROLES);
+    console.log('window.router:', typeof window.router);
+    console.log('window.ic:', typeof window.ic);
+    console.log('document.readyState:', document.readyState);
+    
+    if (typeof Alpine === 'undefined') {
+      console.error('Alpine.js NOT loaded!');
+    } else {
+      console.log('Alpine version:', Alpine.version || 'unknown');
+    }
+  </script>
 </body>
 </html>
